@@ -3203,6 +3203,12 @@ export interface components {
             error: string;
             message: string;
             details?: null | string[];
+            fieldErrors?: null | {
+                [key: string]: string[];
+            };
+            sectionErrors?: null | {
+                [key: string]: string[];
+            };
         };
         ApplicationHealthResponse: {
             status: components["schemas"]["InfrastructureHealthStatus"];
@@ -3653,6 +3659,12 @@ export interface components {
             createdAtUtc: null | string;
             /** Format: date-time */
             updatedAtUtc: null | string;
+            fieldErrors: null | {
+                [key: string]: string[];
+            };
+            sectionErrors: null | {
+                [key: string]: string[];
+            };
         };
         OnboardingDraftUpdateRequest: {
             /** Format: int32 */

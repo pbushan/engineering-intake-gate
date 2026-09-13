@@ -5,7 +5,9 @@ namespace IntakeGate.Host;
 public sealed record ApiErrorResponse(
     string Error,
     string Message,
-    IReadOnlyList<string>? Details = null);
+    IReadOnlyList<string>? Details = null,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? FieldErrors = null,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? SectionErrors = null);
 
 public sealed record VersionResponse(string Application, string Version, string Environment);
 

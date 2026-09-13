@@ -236,6 +236,21 @@ export const completeDraft: OnboardingDraftState = {
   },
   createdAtUtc: '2026-09-12T12:00:00Z',
   updatedAtUtc: '2026-09-12T12:30:00Z',
+  fieldErrors: {},
+  sectionErrors: {},
+};
+
+const draftValidation = (values: OnboardingDraftState['values']) => {
+  const fieldErrors: Record<string, string[]> = {};
+  const sectionErrors: Record<string, string[]> = {};
+  if (!values?.policyUrl) fieldErrors.policyUrl = ['Policy URL is required.'];
+  if (!values?.intakeState?.validatedTag) fieldErrors['intakeState.validatedTag'] = ['Engineering Ready tag is required.'];
+  if (!values?.intakeState?.incompleteTag) fieldErrors['intakeState.incompleteTag'] = ['Intake Incomplete tag is required.'];
+  if (!values?.schedule?.timezone) fieldErrors['schedule.timezone'] = ['Timezone is required.'];
+  if (!values?.processing?.contentLimits?.maximumTotalCharacters)
+    fieldErrors['processing.contentLimits.maximumTotalCharacters'] = ['Maximum total characters is required.'];
+  if (!values?.policy?.criteria?.length) sectionErrors['policy.criteria'] = ['Add at least one intake criterion.'];
+  return { fieldErrors, sectionErrors };
 };
 
 const credential = (configured = false, verified = false): CredentialMetadata => ({
@@ -293,10 +308,13 @@ export interface MockBackendOptions {
   aiSettings?: AiSettings;
   aiCredentials?: Partial<Record<AiProvider, CredentialMetadata>>;
   adoVerificationFails?: boolean;
+  adoSettingsValidationFails?: boolean;
   aiVerificationFails?: boolean;
   discoveryUnavailable?: boolean;
   staleModelCandidate?: boolean;
   queryValidationFails?: boolean;
+  queryInputValidationFails?: boolean;
+  aiModelValidationFails?: boolean;
   staleQueryCandidate?: boolean;
   queryTotalCount?: number;
   queryPreviewCount?: number;
@@ -308,6 +326,7 @@ export interface MockBackendOptions {
   runDetail?: RunDetail;
   runItemDetail?: RunItemDetail;
   analyzeDecision?: 'pass' | 'fail' | 'error' | 'notEligible';
+  analyzeValidationFails?: boolean;
   runConflict?: boolean;
   health?: SystemHealth;
   homeSummary?: HomeSummary;
@@ -329,7 +348,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     unavailable: options.unavailable ?? false,
     rejectNextCsrf: false,
     defaults: options.defaults ?? onboardingDefaults,
-    draft: options.draft ?? (options.setup?.onboardingDraftExists ? completeDraft : { exists: false, revision: null, values: null, createdAtUtc: null, updatedAtUtc: null }),
+    draft: options.draft ?? (options.setup?.onboardingDraftExists ? completeDraft : { exists: false, revision: null, values: null, createdAtUtc: null, updatedAtUtc: null, fieldErrors: null, sectionErrors: null }),
     adoCredential: options.adoCredential ?? credential(options.setup?.azureDevOpsCredentialConfigured, options.setup?.azureDevOpsCredentialVerified),
     adoSettings: options.adoSettings ?? adoSettings(options.setup?.azureDevOpsSavedQueryConfirmed),
     aiSettings: options.aiSettings ?? aiSettings(options.setup?.aiModelConfigured),
@@ -390,16 +409,17 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (path === '/api/setup/defaults') return json(state.defaults);
     if (path === '/api/setup/profile-draft' && method === 'GET') return json(state.draft);
     if (path === '/api/setup/profile-draft/initialize' && method === 'POST') {
-      state.draft = { exists: true, revision: 1, values: structuredClone(state.defaults.values), createdAtUtc: '2026-09-12T13:00:00Z', updatedAtUtc: '2026-09-12T13:00:00Z' };
+      state.draft = { exists: true, revision: 1, values: structuredClone(state.defaults.values), createdAtUtc: '2026-09-12T13:00:00Z', updatedAtUtc: '2026-09-12T13:00:00Z', fieldErrors: {}, sectionErrors: {} };
       state.setup = { ...state.setup, onboardingDraftExists: true };
       return json(state.draft);
     }
     if (path === '/api/setup/profile-draft' && method === 'PUT') {
       const body = JSON.parse(String(init.body)) as { expectedRevision: number; values: OnboardingDraftState['values'] };
       if (Number(body.expectedRevision) !== Number(state.draft.revision)) return json({ error: 'OnboardingDraftConflict', message: 'Setup changed; reload it.' }, 409);
-      if (options.draftValidationFails) return json({ error: 'InvalidOnboardingDraft', message: 'The schedule expression or timezone is invalid.' }, 400);
-      state.draft = { ...state.draft, revision: Number(state.draft.revision) + 1, values: structuredClone(body.values), updatedAtUtc: '2026-09-12T13:05:00Z' };
-      const complete = Boolean(body.values?.policyUrl && body.values.intakeState?.validatedTag && body.values.intakeState.incompleteTag && body.values.schedule?.timezone && body.values.schedule.initialLookback && body.values.policy?.criteria?.length);
+      if (options.draftValidationFails) return json({ error: 'ValidationFailed', message: 'The schedule expression or timezone is invalid.', fieldErrors: { 'schedule.timezone': ['Select a backend-supported timezone.'] } }, 400);
+      const validation = draftValidation(body.values);
+      state.draft = { ...state.draft, revision: Number(state.draft.revision) + 1, values: structuredClone(body.values), updatedAtUtc: '2026-09-12T13:05:00Z', ...validation };
+      const complete = Object.keys(validation.fieldErrors).length === 0 && Object.keys(validation.sectionErrors).length === 0;
       state.setup = { ...state.setup, onboardingDraftExists: true, profileDetailsComplete: complete, policyDetailsComplete: complete };
       return json(state.draft);
     }
@@ -416,7 +436,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       if (options.finalizeActivationFails) return json({ error: 'ConfigurationActivationFailed', message: 'The configuration could not be activated safely.' }, 503);
       state.setup = { ...completeSetup };
       state.profile = { ...profileState };
-      state.draft = { exists: false, revision: null, values: null, createdAtUtc: null, updatedAtUtc: null };
+      state.draft = { exists: false, revision: null, values: null, createdAtUtc: null, updatedAtUtc: null, fieldErrors: null, sectionErrors: null };
       return json(state.profile, 201);
     }
     if (path === '/api/ado/credential' && method === 'GET') return json(state.adoCredential);
@@ -429,16 +449,26 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (path === '/api/ado/settings' && method === 'GET') return json(state.adoSettings);
     if (path === '/api/ado/settings' && method === 'PUT') {
       const body = JSON.parse(String(init.body)) as { organizationUrl: string; project: string };
+      if (options.adoSettingsValidationFails) return json({ error: 'ValidationFailed', message: 'The Azure DevOps settings need attention.', fieldErrors: { 'ado.organizationUrl': ['Enter an absolute Azure DevOps organization URL.'] } }, 400);
       state.adoSettings = { ...state.adoSettings, organizationUrl: body.organizationUrl, project: body.project }; return new Response(null, { status: 204 });
     }
     if (path === '/api/ado/connection-tests' && method === 'POST') {
-      if (options.adoVerificationFails) return json({ error: 'AzureDevOpsAuthenticationFailed' }, 502);
+      if (options.adoVerificationFails) return json({
+        error: 'AzureDevOpsAuthenticationFailed',
+        message: 'Azure DevOps rejected the credential. Replace or correct it, then test again.',
+        fieldErrors: { 'ado.credential': ['Azure DevOps rejected the stored credential. Replace or correct it, then test again.'] },
+      }, 502);
       state.adoCredential = { ...state.adoCredential, verificationStatus: 'verified', lastVerifiedAtUtc: '2026-09-12T13:15:00Z' };
       state.health = { ...state.health, azureDevOps: { ...state.health.azureDevOps, status: 'verified', verificationStatus: 'verified', lastVerifiedAtUtc: '2026-09-12T13:15:00Z', verificationDiagnostic: null } };
       state.setup = { ...state.setup, azureDevOpsCredentialVerified: true }; return json({ succeeded: true, error: null });
     }
     if (path === '/api/ado/query-candidates/validate' && method === 'POST') {
-      if (options.queryValidationFails) return json({ error: 'SavedQueryValidationFailed' }, 502);
+      if (options.queryInputValidationFails) return json({ error: 'ValidationFailed', message: 'The saved query needs attention.', fieldErrors: { 'ado.savedQuery': ['Enter an Azure DevOps saved-query URL or GUID.'] } }, 400);
+      if (options.queryValidationFails) return json({
+        error: 'SavedQueryNotFoundOrInaccessible',
+        message: 'The saved query could not be found or accessed.',
+        fieldErrors: { 'ado.savedQuery': ['Check the saved-query URL or GUID and its permissions, then validate again.'] },
+      }, 502);
       return json({ confirmationToken: 'query-token', expiresAtUtc: '2026-09-12T14:00:00Z', organizationUrl: state.adoSettings.organizationUrl ?? '', project: state.adoSettings.project ?? '', savedQueryId: '11111111-1111-1111-1111-111111111111', candidateFingerprint: 'sha256:candidate', totalCount: options.queryTotalCount ?? 2, preview: Array.from({ length: options.queryPreviewCount ?? 1 }, (_, index) => ({ id: 101 + index, title: `Safe work item ${index + 1}`, workItemType: 'Bug', state: 'New', webUrl: `https://dev.azure.example/item/${101 + index}` })) });
     }
     if (path === '/api/ado/query-candidates/confirm' && method === 'POST') {
@@ -457,20 +487,25 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return json(state.aiCredentials[selected]);
       }
       if (operation === 'credential-tests' && method === 'POST') {
-        if (options.aiVerificationFails) return json({ error: 'AiAuthenticationFailed' }, 502);
+        if (options.aiVerificationFails) return json({
+          error: 'AiAuthenticationFailed',
+          message: 'The AI provider rejected the credential. Replace or correct it, then verify again.',
+          fieldErrors: { 'ai.credential': ['The AI provider rejected the stored credential. Replace or correct it, then verify again.'] },
+        }, 502);
         state.aiCredentials[selected] = { ...state.aiCredentials[selected], verificationStatus: 'verified', lastVerifiedAtUtc: '2026-09-12T13:25:00Z' };
         state.health = { ...state.health, ai: { ...state.health.ai, status: 'verified', verificationStatus: 'verified', lastVerifiedAtUtc: '2026-09-12T13:25:00Z', verificationDiagnostic: null } };
         state.setup = { ...state.setup, aiCredentialConfigured: true, aiCredentialVerified: true, requiredAiCredentialSlot: selected === 'openai' ? 'openAiApiKey' : 'anthropicApiKey' };
         return json({ succeeded: true, error: null });
       }
       if (operation === 'models/discover' && method === 'POST') {
-        if (options.discoveryUnavailable) return json({ error: 'AiProviderUnavailable' }, 503);
+        if (options.discoveryUnavailable) return json({ error: 'AiProviderUnavailable', message: 'The AI provider is temporarily unavailable. Try again later; the credential was not marked invalid.' }, 503);
         return json({ succeeded: true, models: [{ provider: selected, id: `${selected}-model`, displayName: `${selected} model` }], error: null });
       }
     }
     if (path === '/api/ai/settings') return json(state.aiSettings);
     if (path === '/api/ai/model-candidates/validate' && method === 'POST') {
       const body = JSON.parse(String(init.body)) as { provider: AiProvider; model: string };
+      if (options.aiModelValidationFails) return json({ error: 'ValidationFailed', message: 'The model ID needs attention.', fieldErrors: { 'ai.model': ['Enter a valid model ID.'] } }, 400);
       return json({ confirmationToken: 'model-token', expiresAtUtc: '2026-09-12T14:00:00Z', provider: body.provider, model: body.model, displayName: body.model });
     }
     if (path === '/api/ai/model-candidates/confirm' && method === 'POST') {
@@ -482,6 +517,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       if (state.user.role !== 'admin') return json({ error: 'Forbidden', message: 'Administrator access is required.' }, 403);
       if (options.operationDelayMs) await new Promise((resolve) => setTimeout(resolve, options.operationDelayMs));
       if (options.runConflict) return json({ error: 'ActiveRunInProgress', message: 'Another run already holds the active profile execution lease.' }, 409);
+      if (options.analyzeValidationFails) return json({ error: 'InvalidWorkItemIdentity', message: 'The work-item URL is outside the configured boundary.', fieldErrors: { workItemIdentity: ['Enter a work-item URL for the configured Azure DevOps organization and project.'] } }, 400);
       const decision = options.analyzeDecision ?? 'pass';
       const body = JSON.parse(String(init.body)) as { workItemId: number | null; workItemUrl: string | null };
       const id = body.workItemId ?? Number(/\/([0-9]+)\/?$/.exec(body.workItemUrl ?? '')?.[1] ?? 101);

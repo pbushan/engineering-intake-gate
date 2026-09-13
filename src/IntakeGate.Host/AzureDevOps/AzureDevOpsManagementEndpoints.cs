@@ -29,7 +29,12 @@ public static class AzureDevOpsManagementEndpoints
                 CancellationToken cancellationToken) =>
             {
                 if (string.IsNullOrWhiteSpace(request.Replacement) || request.Replacement.Length > 4_096)
-                    return Results.BadRequest(new { error = "InvalidCredential" });
+                    return Results.BadRequest(new ApiErrorResponse(
+                        "ValidationFailed", "The Azure DevOps credential needs attention.",
+                        FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                        {
+                            ["ado.credential"] = ["Enter a credential between 1 and 4,096 characters."]
+                        }));
                 await secrets.ReplaceLocalAsync(CredentialSlot.AzureDevOps,
                     new SecretValue(request.Replacement), CurrentActor(principal), cancellationToken);
                 runtime.MarkActivationPending();
@@ -58,7 +63,12 @@ public static class AzureDevOpsManagementEndpoints
                 }
                 catch (ArgumentException)
                 {
-                    return Results.BadRequest(new { error = "InvalidEnvironmentReference" });
+                    return Results.BadRequest(new ApiErrorResponse(
+                        "ValidationFailed", "The environment reference needs attention.",
+                        FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                        {
+                            ["ado.environmentVariableName"] = ["Enter a valid environment-variable name, not a credential value."]
+                        }));
                 }
                 return Results.Ok(SafeMetadata(await secrets.GetMetadataAsync(
                     CredentialSlot.AzureDevOps, cancellationToken)));
@@ -110,6 +120,14 @@ public static class AzureDevOpsManagementEndpoints
                 AzureDevOpsManagementService management,
                 CancellationToken cancellationToken) =>
             {
+                var fieldErrors = new Dictionary<string, IReadOnlyList<string>>();
+                if (!AzureDevOpsSettingsValidation.TryNormalizeOrganization(request.OrganizationUrl, out _))
+                    fieldErrors["ado.organizationUrl"] = ["Enter an absolute Azure DevOps organization URL without user information, a query, or a fragment."];
+                if (string.IsNullOrWhiteSpace(request.Project))
+                    fieldErrors["ado.project"] = ["Project is required."];
+                if (fieldErrors.Count > 0)
+                    return Results.BadRequest(new ApiErrorResponse(
+                        "ValidationFailed", "The Azure DevOps settings need attention.", FieldErrors: fieldErrors));
                 var error = await management.SaveProfilelessSettingsAsync(request.OrganizationUrl,
                     request.Project, CurrentActor(principal), cancellationToken);
                 return error switch
@@ -190,46 +208,96 @@ public static class AzureDevOpsManagementEndpoints
     private static IResult Failure(AzureDevOpsManagementFailure? failure) => failure switch
     {
         AzureDevOpsManagementFailure.ProfileNotConfigured => ProfileRequired(),
-        AzureDevOpsManagementFailure.CredentialUnavailable => Results.Conflict(
-            new ConnectionTestResponse(false, "AzureDevOpsCredentialUnavailable")),
-        AzureDevOpsManagementFailure.AuthenticationFailed => Results.Json(
-            new ConnectionTestResponse(false, "AzureDevOpsAuthenticationFailed"), statusCode: StatusCodes.Status502BadGateway),
-        AzureDevOpsManagementFailure.AuthorizationFailed => Results.Json(
-            new ConnectionTestResponse(false, "AzureDevOpsAuthorizationFailed"), statusCode: StatusCodes.Status502BadGateway),
-        AzureDevOpsManagementFailure.OrganizationOrProjectUnavailable => Results.Json(
-            new ConnectionTestResponse(false, "AzureDevOpsOrganizationOrProjectUnavailable"), statusCode: StatusCodes.Status502BadGateway),
-        AzureDevOpsManagementFailure.Timeout => Results.Json(
-            new ConnectionTestResponse(false, "AzureDevOpsTimeout"), statusCode: StatusCodes.Status504GatewayTimeout),
-        AzureDevOpsManagementFailure.ProviderUnavailable => Results.Json(
-            new ConnectionTestResponse(false, "AzureDevOpsProviderUnavailable"), statusCode: StatusCodes.Status503ServiceUnavailable),
-        _ => Results.Json(new ConnectionTestResponse(false, "AzureDevOpsConnectionFailed"),
+        AzureDevOpsManagementFailure.CredentialUnavailable => Results.Conflict(new ApiErrorResponse(
+            "AzureDevOpsCredentialUnavailable", "Configure an Azure DevOps credential before testing the connection.")),
+        AzureDevOpsManagementFailure.AuthenticationFailed => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsAuthenticationFailed", "Azure DevOps rejected the credential. Replace or correct it, then test again.",
+                FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["ado.credential"] = ["Azure DevOps rejected the stored credential. Replace or correct it, then test again."]
+                }),
+            statusCode: StatusCodes.Status502BadGateway),
+        AzureDevOpsManagementFailure.AuthorizationFailed => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsAuthorizationFailed", "Azure DevOps denied access. Review the credential permissions and project access, then test again.",
+                SectionErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["ado.connection"] = ["Review credential permissions and project access, then test the connection again."]
+                }),
+            statusCode: StatusCodes.Status502BadGateway),
+        AzureDevOpsManagementFailure.OrganizationOrProjectUnavailable => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsOrganizationOrProjectUnavailable", "Azure DevOps could not find or access the saved organization and project. Review them, then test again.",
+                SectionErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["ado.connection"] = ["Review the organization URL, project, and access permissions, then test again."]
+                }),
+            statusCode: StatusCodes.Status502BadGateway),
+        AzureDevOpsManagementFailure.Timeout => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsTimeout", "Azure DevOps timed out. Try again later; the credential was not marked invalid."),
+            statusCode: StatusCodes.Status504GatewayTimeout),
+        AzureDevOpsManagementFailure.ProviderUnavailable => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsProviderUnavailable", "Azure DevOps is temporarily unavailable. Try again later; the credential was not marked invalid."),
+            statusCode: StatusCodes.Status503ServiceUnavailable),
+        _ => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsConnectionFailed", "The Azure DevOps connection test could not be completed. Review the system health details and try again."),
             statusCode: StatusCodes.Status502BadGateway)
     };
 
     private static IResult CandidateFailure(AzureDevOpsCandidateResult result) => result.Failure switch
     {
         AzureDevOpsCandidateFailure.ProfileNotConfigured => ProfileRequired(),
-        AzureDevOpsCandidateFailure.InvalidSettings => Results.BadRequest(new { error = "InvalidAzureDevOpsSettings" }),
-        AzureDevOpsCandidateFailure.InvalidSavedQueryInput => Results.BadRequest(new { error = "InvalidSavedQueryInput" }),
-        AzureDevOpsCandidateFailure.CredentialUnavailable => Results.Conflict(new { error = "AzureDevOpsCredentialNotConfigured" }),
-        AzureDevOpsCandidateFailure.ProviderFailure => Results.Json(new
-        {
-            error = result.ProviderFailure == AzureDevOpsManagementFailure.QueryNotFoundOrInaccessible
-                ? "SavedQueryNotFoundOrInaccessible"
-                : "SavedQueryValidationFailed",
-            category = result.ProviderFailure
-        }, statusCode: StatusCodes.Status502BadGateway),
+        AzureDevOpsCandidateFailure.InvalidSettings => Results.BadRequest(new ApiErrorResponse(
+            "ValidationFailed", "The Azure DevOps organization or project needs attention.",
+            SectionErrors: new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["ado.connection"] = ["Save a valid organization URL and project before validating the query."]
+            })),
+        AzureDevOpsCandidateFailure.InvalidSavedQueryInput => Results.BadRequest(new ApiErrorResponse(
+            "ValidationFailed", "The saved query needs attention.",
+            FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["ado.savedQuery"] = ["Enter an Azure DevOps saved-query URL or GUID."]
+            })),
+        AzureDevOpsCandidateFailure.CredentialUnavailable => Results.Conflict(new ApiErrorResponse(
+            "AzureDevOpsCredentialNotConfigured", "Configure and verify an Azure DevOps credential before validating a saved query.")),
+        AzureDevOpsCandidateFailure.ProviderFailure => QueryProviderFailure(result.ProviderFailure),
         _ => Results.Conflict(new { error = "SavedQueryCandidateConflict" })
     };
 
     private static IResult ConfirmationFailure(AzureDevOpsCandidateFailure? failure) => failure switch
     {
         AzureDevOpsCandidateFailure.ProfileNotConfigured => ProfileRequired(),
-        AzureDevOpsCandidateFailure.CandidateStale => Results.Conflict(new { error = "SavedQueryCandidateStale" }),
+        AzureDevOpsCandidateFailure.CandidateStale => Results.Conflict(new ApiErrorResponse(
+            "SavedQueryCandidateStale", "Validation expired or the connection changed. Validate the query again.")),
         AzureDevOpsCandidateFailure.ActiveRunInProgress => Results.Conflict(new { error = "ActiveRunInProgress" }),
         AzureDevOpsCandidateFailure.ActivationFailed => Results.Json(new { error = "ConfigurationActivationFailed" },
             statusCode: StatusCodes.Status503ServiceUnavailable),
         _ => Results.Conflict(new { error = "SavedQueryConfirmationConflict" })
+    };
+
+    private static IResult QueryProviderFailure(AzureDevOpsManagementFailure? failure) => failure switch
+    {
+        AzureDevOpsManagementFailure.QueryNotFoundOrInaccessible => Results.Json(new ApiErrorResponse(
+                "SavedQueryNotFoundOrInaccessible", "The saved query could not be found or accessed.",
+                FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["ado.savedQuery"] = ["Check the saved-query URL or GUID and its permissions, then validate again."]
+                }),
+            statusCode: StatusCodes.Status502BadGateway),
+        AzureDevOpsManagementFailure.AuthenticationFailed => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsAuthenticationFailed", "Azure DevOps rejected the credential. Return to the connection step, replace or correct it, then validate the query again."),
+            statusCode: StatusCodes.Status502BadGateway),
+        AzureDevOpsManagementFailure.AuthorizationFailed => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsAuthorizationFailed", "Azure DevOps denied access. Review credential permissions and project access, then validate the query again."),
+            statusCode: StatusCodes.Status502BadGateway),
+        AzureDevOpsManagementFailure.Timeout => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsTimeout", "Azure DevOps timed out. Try validating the query again later; the query input and credential were not marked invalid."),
+            statusCode: StatusCodes.Status504GatewayTimeout),
+        AzureDevOpsManagementFailure.ProviderUnavailable => Results.Json(new ApiErrorResponse(
+                "AzureDevOpsProviderUnavailable", "Azure DevOps is temporarily unavailable. Try validating the query again later; the query input and credential were not marked invalid."),
+            statusCode: StatusCodes.Status503ServiceUnavailable),
+        _ => Results.Json(new ApiErrorResponse(
+                "SavedQueryValidationFailed", "The saved query could not be validated. Review system health and try again."),
+            statusCode: StatusCodes.Status502BadGateway)
     };
 
     private static CredentialMetadataResponse SafeMetadata(CredentialMetadata metadata) => new(

@@ -116,7 +116,11 @@ public static class OperationalEndpoints
         var generation = capture.Services!.Generation;
         if (!TryResolve(request, generation.Configuration.Profile.Ado, out var id))
             return Results.BadRequest(new ApiErrorResponse("InvalidWorkItemIdentity",
-                "Supply exactly one positive workItemId or a supported Azure DevOps work-item URL inside the configured organization and project."));
+                "Supply exactly one positive workItemId or a supported Azure DevOps work-item URL inside the configured organization and project.",
+                FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["workItemIdentity"] = ["Enter a positive work-item ID or a supported Azure DevOps work-item URL for the configured organization and project."]
+                }));
 
         var result = await ExecuteManualAsync(id, principal, services, capture.Services!, audit, cancellationToken);
         if (result.Error is not null) return result.Error;

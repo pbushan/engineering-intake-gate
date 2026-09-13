@@ -190,7 +190,11 @@ public sealed class AiManagementEndpointTests
         fixture.State.VerificationFailure = AiManagementFailure.AuthenticationFailed;
         var failedVerification = await client.PostAsync("/api/ai/providers/openai/credential-tests", null);
         Assert.Equal(HttpStatusCode.BadGateway, failedVerification.StatusCode);
-        Assert.DoesNotContain(KeyCanary, await failedVerification.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        var failedVerificationText = await failedVerification.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(KeyCanary, failedVerificationText, StringComparison.Ordinal);
+        var failedVerificationBody = JsonDocument.Parse(failedVerificationText).RootElement;
+        Assert.Equal("The AI provider rejected the stored credential. Replace or correct it, then verify again.",
+            failedVerificationBody.GetProperty("fieldErrors").GetProperty("ai.credential")[0].GetString());
         var failedMetadata = await client.GetFromJsonAsync<JsonElement>("/api/ai/providers/openai/credential");
         Assert.Equal("failed", failedMetadata.GetProperty("verificationStatus").GetString());
         Assert.Equal("authenticationRejected", failedMetadata.GetProperty("verificationDiagnostic").GetString());
@@ -208,8 +212,11 @@ public sealed class AiManagementEndpointTests
         Assert.True(readyBefore.GetProperty("ready").GetBoolean());
 
         fixture.State.DiscoveryFailure = AiManagementFailure.ProviderUnavailable;
-        Assert.Equal(HttpStatusCode.ServiceUnavailable,
-            (await client.PostAsync("/api/ai/providers/openai/models/discover", null)).StatusCode);
+        var unavailable = await client.PostAsync("/api/ai/providers/openai/models/discover", null);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, unavailable.StatusCode);
+        var unavailableBody = await unavailable.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(!unavailableBody.TryGetProperty("fieldErrors", out var unavailableFields) ||
+                    unavailableFields.ValueKind == JsonValueKind.Null);
         var readyAfter = await client.GetFromJsonAsync<JsonElement>("/api/ai/settings");
         Assert.Equal("example-model", readyAfter.GetProperty("model").GetString());
         Assert.True(readyAfter.GetProperty("modelConfirmed").GetBoolean());
@@ -221,9 +228,12 @@ public sealed class AiManagementEndpointTests
         Assert.Equal(HttpStatusCode.BadGateway, mismatch.StatusCode);
         fixture.State.WrongProvider = false;
         fixture.State.ValidationFailure = AiManagementFailure.ModelNotFound;
-        Assert.Equal(HttpStatusCode.UnprocessableEntity,
-            (await client.PostAsJsonAsync("/api/ai/model-candidates/validate",
-                new { provider = "openai", model = "missing-model" })).StatusCode);
+        var missingModel = await client.PostAsJsonAsync("/api/ai/model-candidates/validate",
+            new { provider = "openai", model = "missing-model" });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, missingModel.StatusCode);
+        Assert.Equal("Choose an available model or enter another model ID, then validate again.",
+            (await missingModel.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("fieldErrors")
+            .GetProperty("ai.model")[0].GetString());
         Assert.Equal(HttpStatusCode.BadRequest,
             (await client.PostAsJsonAsync("/api/ai/model-candidates/validate",
                 new { provider = "openai", model = "invalid model id" })).StatusCode);

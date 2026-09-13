@@ -19,6 +19,47 @@ public sealed class ProfileManagementEndpointTests
     private static readonly Guid QueryId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
     [Fact]
+    public async Task SETUP_4B0_DraftValidationReturnsSafeStableFieldAndSectionErrorsTogether()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        using var admin = fixture.Factory.CreateClient();
+        await AuthenticatedTestClient.AuthenticateAdminAsync(admin);
+        var defaults = await admin.GetFromJsonAsync<JsonElement>("/api/setup/defaults");
+        (await admin.PostAsync("/api/setup/profile-draft/initialize", null)).EnsureSuccessStatusCode();
+
+        var incomplete = JsonNode.Parse(defaults.GetProperty("values").GetRawText())!.AsObject();
+        using var saved = await admin.PutAsJsonAsync("/api/setup/profile-draft", new
+        {
+            expectedRevision = 1,
+            values = incomplete
+        });
+        saved.EnsureSuccessStatusCode();
+        var savedBody = await saved.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Policy URL is required.", savedBody.GetProperty("fieldErrors")
+            .GetProperty("policyUrl")[0].GetString());
+        Assert.Equal("Add at least one intake criterion.", savedBody.GetProperty("sectionErrors")
+            .GetProperty("policy.criteria")[0].GetString());
+        Assert.True(savedBody.GetProperty("fieldErrors").EnumerateObject().Count() > 2);
+
+        const string sensitiveMarker = "SYNTHETIC_SECRET_MUST_NOT_RETURN";
+        incomplete["policyUrl"] = sensitiveMarker;
+        incomplete["processing"]!["concurrency"] = -1;
+        using var invalid = await admin.PutAsJsonAsync("/api/setup/profile-draft", new
+        {
+            expectedRevision = 2,
+            values = incomplete
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        var invalidText = await invalid.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(sensitiveMarker, invalidText, StringComparison.Ordinal);
+        var invalidBody = JsonDocument.Parse(invalidText).RootElement;
+        Assert.Equal("ValidationFailed", invalidBody.GetProperty("error").GetString());
+        Assert.True(invalidBody.GetProperty("fieldErrors").TryGetProperty("policyUrl", out _));
+        Assert.True(invalidBody.GetProperty("fieldErrors").TryGetProperty("processing.concurrency", out _));
+        Assert.True(invalidBody.GetProperty("sectionErrors").TryGetProperty("policy.criteria", out _));
+    }
+
+    [Fact]
     public async Task SETUP_4B0_DraftDefaultsProgressAndAuthorizationAreRestartSafeSetupStateOnly()
     {
         await using var fixture = await Fixture.CreateAsync();

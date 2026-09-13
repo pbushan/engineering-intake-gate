@@ -104,7 +104,12 @@ public static class AiManagementEndpoints
                 CancellationToken cancellationToken) =>
             {
                 if (string.IsNullOrWhiteSpace(request.Replacement) || request.Replacement.Length > 4_096)
-                    return Results.BadRequest(new { error = "InvalidCredential" });
+                    return Results.BadRequest(new ApiErrorResponse(
+                        "ValidationFailed", "The AI credential needs attention.",
+                        FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                        {
+                            ["ai.credential"] = ["Enter a credential between 1 and 4,096 characters."]
+                        }));
                 await management.ReplaceLocalCredentialAsync(provider, new SecretValue(request.Replacement),
                     CurrentActor(principal), cancellationToken);
                 return Results.Ok(SafeMetadata(await secrets.GetMetadataAsync(
@@ -129,7 +134,12 @@ public static class AiManagementEndpoints
                 }
                 catch (ArgumentException)
                 {
-                    return Results.BadRequest(new { error = "InvalidEnvironmentReference" });
+                    return Results.BadRequest(new ApiErrorResponse(
+                        "ValidationFailed", "The AI environment reference needs attention.",
+                        FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                        {
+                            ["ai.environmentVariableName"] = ["Enter a valid environment-variable name, not a credential value."]
+                        }));
                 }
                 return Results.Ok(SafeMetadata(await secrets.GetMetadataAsync(
                     AiProviderNames.CredentialSlot(provider), cancellationToken)));
@@ -174,17 +184,24 @@ public static class AiManagementEndpoints
 
     private static IResult CandidateFailure(AiCandidateResult result) => result.Failure switch
     {
-        AiCandidateFailure.InvalidProvider => Results.BadRequest(new { error = "InvalidAiProvider" }),
-        AiCandidateFailure.InvalidModelIdentifier => Results.BadRequest(new { error = "InvalidModelIdentifier" }),
-        AiCandidateFailure.CredentialUnavailable => Results.Conflict(new { error = "AiCredentialUnavailable" }),
-        AiCandidateFailure.CredentialNotVerified => Results.Conflict(new { error = "AiCredentialNotVerified" }),
+        AiCandidateFailure.InvalidProvider => Results.BadRequest(new ApiErrorResponse(
+            "ValidationFailed", "Select a supported AI provider.",
+            FieldErrors: new Dictionary<string, IReadOnlyList<string>> { ["ai.provider"] = ["Select OpenAI or Anthropic."] })),
+        AiCandidateFailure.InvalidModelIdentifier => Results.BadRequest(new ApiErrorResponse(
+            "ValidationFailed", "The model ID needs attention.",
+            FieldErrors: new Dictionary<string, IReadOnlyList<string>> { ["ai.model"] = ["Enter a valid model ID."] })),
+        AiCandidateFailure.CredentialUnavailable => Results.Conflict(new ApiErrorResponse(
+            "AiCredentialUnavailable", "Configure an AI credential before validating a model.")),
+        AiCandidateFailure.CredentialNotVerified => Results.Conflict(new ApiErrorResponse(
+            "AiCredentialNotVerified", "Verify the AI credential before validating a model.")),
         AiCandidateFailure.ProviderFailure => ManagementFailure(result.ProviderFailure, "AiModelValidationFailed"),
         _ => Results.Conflict(new { error = "AiModelCandidateConflict" })
     };
 
     private static IResult ConfirmationFailure(AiCandidateFailure? failure) => failure switch
     {
-        AiCandidateFailure.CandidateStale => Results.Conflict(new { error = "AiModelCandidateStale" }),
+        AiCandidateFailure.CandidateStale => Results.Conflict(new ApiErrorResponse(
+            "AiModelCandidateStale", "Model validation expired or the credential changed. Validate the model again.")),
         AiCandidateFailure.ActivationFailed => Results.Json(new { error = "ConfigurationActivationFailed" },
             statusCode: StatusCodes.Status503ServiceUnavailable),
         _ => Results.Conflict(new { error = "AiModelConfirmationConflict" })
@@ -192,22 +209,45 @@ public static class AiManagementEndpoints
 
     private static IResult ManagementFailure(AiManagementFailure? failure, string fallback) => failure switch
     {
-        AiManagementFailure.CredentialUnavailable => Results.Conflict(new { error = "AiCredentialUnavailable" }),
-        AiManagementFailure.CredentialNotVerified => Results.Conflict(new { error = "AiCredentialNotVerified" }),
-        AiManagementFailure.CredentialChanged => Results.Conflict(new { error = "AiCredentialChanged" }),
-        AiManagementFailure.AuthenticationFailed => Results.Json(new { error = "AiAuthenticationFailed" },
+        AiManagementFailure.CredentialUnavailable => Results.Conflict(new ApiErrorResponse(
+            "AiCredentialUnavailable", "Configure an AI credential before continuing.")),
+        AiManagementFailure.CredentialNotVerified => Results.Conflict(new ApiErrorResponse(
+            "AiCredentialNotVerified", "Verify the AI credential before continuing.")),
+        AiManagementFailure.CredentialChanged => Results.Conflict(new ApiErrorResponse(
+            "AiCredentialChanged", "The AI credential changed. Verify it again before continuing.")),
+        AiManagementFailure.AuthenticationFailed => Results.Json(new ApiErrorResponse(
+                "AiAuthenticationFailed", "The AI provider rejected the credential. Replace or correct it, then verify again.",
+                FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["ai.credential"] = ["The AI provider rejected the stored credential. Replace or correct it, then verify again."]
+                }),
             statusCode: StatusCodes.Status502BadGateway),
-        AiManagementFailure.AuthorizationFailed => Results.Json(new { error = "AiAuthorizationFailed" },
+        AiManagementFailure.AuthorizationFailed => Results.Json(new ApiErrorResponse(
+                "AiAuthorizationFailed", "The AI provider denied access. Review credential permissions and model access, then verify again.",
+                FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["ai.credential"] = ["Review the credential permissions and account access, then verify again."]
+                }),
             statusCode: StatusCodes.Status502BadGateway),
-        AiManagementFailure.RateLimited => Results.Json(new { error = "AiRateLimited" },
+        AiManagementFailure.RateLimited => Results.Json(new ApiErrorResponse(
+            "AiRateLimited", "The AI provider rate limit was reached. Wait and try again."),
             statusCode: StatusCodes.Status429TooManyRequests),
-        AiManagementFailure.Timeout => Results.Json(new { error = "AiProviderTimeout" },
+        AiManagementFailure.Timeout => Results.Json(new ApiErrorResponse(
+            "AiProviderTimeout", "The AI provider timed out. Try again later; the credential was not marked invalid."),
             statusCode: StatusCodes.Status504GatewayTimeout),
-        AiManagementFailure.ProviderUnavailable => Results.Json(new { error = "AiProviderUnavailable" },
+        AiManagementFailure.ProviderUnavailable => Results.Json(new ApiErrorResponse(
+            "AiProviderUnavailable", "The AI provider is temporarily unavailable. Try again later; the credential was not marked invalid."),
             statusCode: StatusCodes.Status503ServiceUnavailable),
-        AiManagementFailure.ModelNotFound => Results.Json(new { error = "AiModelNotFound" },
+        AiManagementFailure.ModelNotFound => Results.Json(new ApiErrorResponse(
+                "ValidationFailed", "The selected model was not found or is not available to this account.",
+                FieldErrors: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["ai.model"] = ["Choose an available model or enter another model ID, then validate again."]
+                }),
             statusCode: StatusCodes.Status422UnprocessableEntity),
-        _ => Results.Json(new { error = fallback }, statusCode: StatusCodes.Status502BadGateway)
+        _ => Results.Json(new ApiErrorResponse(
+            fallback, "The AI operation could not be completed. Review system health and try again."),
+            statusCode: StatusCodes.Status502BadGateway)
     };
 
     private static CredentialMetadataResponse SafeMetadata(CredentialMetadata metadata) => new(

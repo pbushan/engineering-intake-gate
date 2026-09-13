@@ -79,6 +79,17 @@ describe('OPS-UI-002 governed Analyze Ticket execution', () => {
     expect(backend.calls.some((entry) => entry.path === '/api/runs/work-items')).toBe(false);
   });
 
+  it('renders authoritative backend identity validation inline', async () => {
+    renderAt('/analyze', { analyzeValidationFails: true });
+    const user = userEvent.setup();
+    const identity = await screen.findByLabelText('Azure DevOps work-item ID or URL');
+    await user.type(identity, 'https://example.test/_workitems/edit/123');
+    await user.click(screen.getByRole('button', { name: 'Analyze Ticket' }));
+    expect(await screen.findByText('Enter a work-item URL for the configured Azure DevOps organization and project.')).toBeVisible();
+    expect(identity).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.queryByText(/Not Eligible/)).not.toBeInTheDocument();
+  });
+
   it('renders NOT_ELIGIBLE as a distinct governance result with no override', async () => {
     renderAt('/analyze', { analyzeDecision: 'notEligible' });
     const user = userEvent.setup();
