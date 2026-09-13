@@ -1,0 +1,12 @@
+policy:
+  id: alternate-example-policy
+  version: "2"
+criteria:
+  - id: requested_outcome
+    displayName: Requested Outcome
+    description: A description of the outcome being requested.
+    applicability: required
+    na:
+      allowed: false
+      requiresExplanation: false
+    evaluationGuidance: Determine whether the requested outcome is understandable.

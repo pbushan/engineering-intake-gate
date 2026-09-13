@@ -1,0 +1,21 @@
+policy:
+  id: acceptance-live-policy
+  version: "1"
+
+criteria:
+  - id: problem_statement
+    displayName: Problem Statement
+    description: A clear description of the observed problem or requested outcome.
+    applicability: required
+    na:
+      allowed: false
+      requiresExplanation: false
+    evaluationGuidance: Determine whether the intake states what was observed or what outcome is requested.
+  - id: reproduction_context
+    displayName: Reproduction Context
+    description: Context needed to understand how the reported behavior can be observed.
+    applicability: contextual
+    na:
+      allowed: true
+      requiresExplanation: true
+    evaluationGuidance: Determine whether reproduction context applies and, when it does, whether useful context is present.

@@ -1,0 +1,7407 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "IntakeGate.Host | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:18080/"
+    }
+  ],
+  "paths": {
+    "/api/auth/csrf": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsrfTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/bootstrap/status": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/bootstrap": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/session": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeUserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/password": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SafeUserResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Read the safe singleton profile state",
+        "description": "Admin and Viewer. Returns exists=false for a profileless deployment; never returns credential material.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileStateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Create the singleton profile from confirmed setup",
+        "description": "Admin and antiforgery token required. ADO and AI values come only from confirmed server-side staging; a second profile conflicts.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileWriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Atomically update supported singleton profile fields",
+        "description": "Admin and antiforgery token required. The revision is optimistic concurrency control. Profile ID, ADO query, AI provider/model, and credentials cannot be changed here.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/imports/legacy": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Explicitly import one legacy YAML profile and policy",
+        "description": "Admin and antiforgery token required. Accepts bounded content, never a server path. Import is create-only, preserves profile_id, and rejects Production/LIVE.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyProfileImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/export": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Export the secret-free singleton profile",
+        "description": "Admin and Viewer. Export is equivalent to safe profile read and cannot bypass validation on later import.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileExportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/status": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Read derived setup readiness",
+        "description": "Admin and Viewer. Every readiness field is derived from authoritative persistence and runtime state.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/defaults": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Read authoritative onboarding defaults and required Admin fields",
+        "description": "Admin and Viewer. Values are product-agnostic backend defaults only; null fields require Admin input.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDefaults"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/profile-draft": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Read the singleton onboarding profile draft",
+        "description": "Admin and Viewer. The draft is safe setup input only and is never a runtime profile.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDraftStateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Atomically update supported onboarding profile and policy input",
+        "description": "Admin and antiforgery token required. The integer revision prevents lost updates; integration authority is not accepted here.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingDraftUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDraftStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/profile-draft/initialize": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Initialize the singleton onboarding draft from server defaults",
+        "description": "Admin and antiforgery token required. Existing drafts are returned unchanged; unavailable after profile creation.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDraftStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/progress": {
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Record setup wizard navigation progress",
+        "description": "Admin and antiforgery token required. This records navigation only and never marks a setup component complete.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupProgressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/finalize": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Create and activate the singleton profile from confirmed setup",
+        "description": "Admin and antiforgery token required. The server reconstructs ADO, query, AI, credentials, and draft state and atomically consumes all setup staging.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupFinalizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs": {
+      "post": {
+        "tags": [
+          "OperationalEndpoints"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "OperationalEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "startedFromUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "startedToUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "invocationType",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/RunTriggerType"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OperationalRunStatus"
+            }
+          },
+          {
+            "name": "workItemId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunHistoryPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/work-items": {
+      "post": {
+        "tags": [
+          "OperationalEndpoints"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeWorkItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyzeWorkItemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/work-items/{id}": {
+      "post": {
+        "tags": [
+          "OperationalEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualWorkItemRunResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{runId}": {
+      "get": {
+        "tags": [
+          "OperationalEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{runId}/items/{evaluationId}": {
+      "get": {
+        "tags": [
+          "OperationalEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "evaluationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunItemDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/health": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "occurredFromUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "occurredToUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "operation",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetCategory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlPlaneAuditPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/home/summary": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "parameters": [
+          {
+            "name": "windowDays",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfstring"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diagnostics/runs/{runId}": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/diagnostics/runtime-records": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ado/credential": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ado/credential/local": {
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialReplacementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ado/credential/environment": {
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentReferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ado/settings": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AzureDevOpsSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AzureDevOpsSetupSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ado/connection-tests": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTestResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ado/query-candidates/validate": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateSavedQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateSavedQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ado/query-candidates/confirm": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmSavedQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmSavedQueryResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/openai/credential": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/openai/credential/local": {
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCredentialReplacementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/openai/credential/environment": {
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentAiCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/openai/credential-tests": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCredentialTestResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/openai/models/discover": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModelDiscoveryResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/anthropic/credential": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/anthropic/credential/local": {
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCredentialReplacementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/anthropic/credential/environment": {
+      "put": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentAiCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMetadataResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/anthropic/credential-tests": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCredentialTestResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/providers/anthropic/models/discover": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModelDiscoveryResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/settings": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/model-candidates/validate": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateAiModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateAiModelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/model-candidates/confirm": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmAiModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmAiModelResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AiCredentialReplacementRequest": {
+        "required": [
+          "replacement"
+        ],
+        "type": "object",
+        "properties": {
+          "replacement": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiCredentialTestResponse": {
+        "required": [
+          "succeeded",
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "succeeded": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiDiagnosticMetadataResponse": {
+        "required": [
+          "credentialRevisionAtUtc",
+          "activeRuntimeProvider",
+          "activeRuntimeModel"
+        ],
+        "type": "object",
+        "properties": {
+          "credentialRevisionAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "activeRuntimeProvider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "activeRuntimeModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiModelDescriptor": {
+        "required": [
+          "provider",
+          "id",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiModelDiscoveryResponse": {
+        "required": [
+          "succeeded",
+          "models",
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "succeeded": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiModelDescriptor"
+            }
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiProfileResponse": {
+        "required": [
+          "provider",
+          "model",
+          "timeoutSeconds",
+          "pricing"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pricing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelPricingResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiRuntimeRequest": {
+        "required": [
+          "timeoutSeconds",
+          "pricing"
+        ],
+        "type": "object",
+        "properties": {
+          "timeoutSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pricing": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ModelPricingRequest"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiSettingsResponse": {
+        "required": [
+          "profileConfigured",
+          "provider",
+          "model",
+          "modelConfirmed",
+          "ready",
+          "modelValidatedAtUtc",
+          "restartRequired",
+          "activationMessage"
+        ],
+        "type": "object",
+        "properties": {
+          "profileConfigured": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "modelConfirmed": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "modelValidatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "restartRequired": {
+            "type": "boolean"
+          },
+          "activationMessage": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnalyzeWorkItemRequest": {
+        "required": [
+          "workItemId",
+          "workItemUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "workItemId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "workItemUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnalyzeWorkItemResponse": {
+        "required": [
+          "runId",
+          "evaluationId",
+          "workItemId",
+          "decision",
+          "decisionLabel",
+          "eligibility",
+          "processingStatus",
+          "effectiveMode",
+          "configurationGenerationId",
+          "detailUrl",
+          "itemDetailUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "evaluationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "workItemId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/OperationalDecisionState"
+          },
+          "decisionLabel": {
+            "type": "string"
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/WorkItemEligibility"
+          },
+          "processingStatus": {
+            "$ref": "#/components/schemas/EvaluationProcessingStatus"
+          },
+          "effectiveMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "configurationGenerationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "detailUrl": {
+            "type": "string"
+          },
+          "itemDetailUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring": {
+        "required": [
+          "id",
+          "instanceId",
+          "startedAtUtc",
+          "applicationVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "applicationVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring": {
+        "required": [
+          "count",
+          "records"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "records": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnonymousTypeOfstring": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ApiErrorResponse": {
+        "required": [
+          "error",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ApplicationHealthResponse": {
+        "required": [
+          "status",
+          "application",
+          "version",
+          "environment"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/InfrastructureHealthStatus"
+          },
+          "application": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AttachmentLimitsRequest": {
+        "required": [
+          "maximumCount",
+          "maximumBytesPerAttachment",
+          "maximumAggregateBytes",
+          "maximumPdfPages",
+          "maximumImageCount",
+          "maximumImageBytes",
+          "maximumCsvRows",
+          "maximumStructuredTextDepth"
+        ],
+        "type": "object",
+        "properties": {
+          "maximumCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumBytesPerAttachment": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumAggregateBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumPdfPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumImageCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumImageBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumCsvRows": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumStructuredTextDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AttachmentLimitsResponse": {
+        "required": [
+          "maximumCount",
+          "maximumBytesPerAttachment",
+          "maximumAggregateBytes",
+          "maximumPdfPages",
+          "maximumImageCount",
+          "maximumImageBytes",
+          "maximumCsvRows",
+          "maximumStructuredTextDepth"
+        ],
+        "type": "object",
+        "properties": {
+          "maximumCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumBytesPerAttachment": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumAggregateBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumPdfPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumImageCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumImageBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumCsvRows": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumStructuredTextDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuditActorDisplayType": {
+        "enum": [
+          "user",
+          "system",
+          "unknown"
+        ]
+      },
+      "AuditActorResponse": {
+        "required": [
+          "type",
+          "userId",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/AuditActorDisplayType"
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuditRequest": {
+        "required": [
+          "retentionDays"
+        ],
+        "type": "object",
+        "properties": {
+          "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuditResponse": {
+        "required": [
+          "retentionDays"
+        ],
+        "type": "object",
+        "properties": {
+          "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AzureDevOpsProfileResponse": {
+        "required": [
+          "organizationUrl",
+          "project",
+          "savedQueryId"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationUrl": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "savedQueryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AzureDevOpsQueryPreviewItem": {
+        "required": [
+          "id",
+          "title",
+          "workItemType",
+          "state",
+          "webUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workItemType": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "webUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AzureDevOpsSettingsResponse": {
+        "required": [
+          "profileConfigured",
+          "organizationUrl",
+          "project",
+          "savedQueryId",
+          "configurationGeneration",
+          "configurationFingerprint",
+          "queryConfirmed",
+          "queryValidatedAtUtc",
+          "restartRequired"
+        ],
+        "type": "object",
+        "properties": {
+          "profileConfigured": {
+            "type": "boolean"
+          },
+          "organizationUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "project": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "savedQueryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "configurationGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "configurationFingerprint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "queryConfirmed": {
+            "type": "boolean"
+          },
+          "queryValidatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "restartRequired": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AzureDevOpsSetupSettingsRequest": {
+        "required": [
+          "organizationUrl",
+          "project"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "project": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BootstrapRequest": {
+        "required": [
+          "username",
+          "displayName",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BootstrapStatusResponse": {
+        "required": [
+          "available"
+        ],
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChangePasswordRequest": {
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "newPassword": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmAiModelRequest": {
+        "required": [
+          "confirmationToken"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmationToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmAiModelResponse": {
+        "required": [
+          "profileConfigured",
+          "restartRequired",
+          "activationMessage"
+        ],
+        "type": "object",
+        "properties": {
+          "profileConfigured": {
+            "type": "boolean"
+          },
+          "restartRequired": {
+            "type": "boolean"
+          },
+          "activationMessage": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmSavedQueryRequest": {
+        "required": [
+          "confirmationToken"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmationToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmSavedQueryResponse": {
+        "required": [
+          "configurationGeneration",
+          "restartRequired",
+          "activationMessage"
+        ],
+        "type": "object",
+        "properties": {
+          "configurationGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "restartRequired": {
+            "type": "boolean"
+          },
+          "activationMessage": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConnectionHealthStatus": {
+        "enum": [
+          "verified",
+          "credentialMissing",
+          "authenticationFailed",
+          "authorizationFailed",
+          "rateLimited",
+          "providerUnavailable",
+          "timeout",
+          "notVerified"
+        ]
+      },
+      "ConnectionTestResponse": {
+        "required": [
+          "succeeded",
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "succeeded": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContentLimitsRequest": {
+        "required": [
+          "maximumTotalCharacters",
+          "maximumComments",
+          "maximumExtractedTextCharacters"
+        ],
+        "type": "object",
+        "properties": {
+          "maximumTotalCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumComments": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumExtractedTextCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContentLimitsResponse": {
+        "required": [
+          "maximumTotalCharacters",
+          "maximumComments",
+          "maximumExtractedTextCharacters"
+        ],
+        "type": "object",
+        "properties": {
+          "maximumTotalCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumComments": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumExtractedTextCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ControlPlaneAuditItemResponse": {
+        "required": [
+          "id",
+          "occurredAtUtc",
+          "actor",
+          "operation",
+          "targetCategory",
+          "targetId",
+          "changedFields"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/AuditActorResponse"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "targetCategory": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "changedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ControlPlaneAuditPageResponse": {
+        "required": [
+          "page",
+          "pageSize",
+          "totalCount",
+          "totalPages",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlPlaneAuditItemResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateUserRequest": {
+        "required": [
+          "username",
+          "displayName",
+          "password",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/LocalUserRole"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CredentialMetadataResponse": {
+        "required": [
+          "configured",
+          "sourceKind",
+          "createdAtUtc",
+          "updatedAtUtc",
+          "verificationStatus",
+          "lastVerifiedAtUtc",
+          "verificationDiagnostic"
+        ],
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "sourceKind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SecretSourceKind"
+              }
+            ]
+          },
+          "createdAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "verificationStatus": {
+            "$ref": "#/components/schemas/CredentialVerificationStatus"
+          },
+          "lastVerifiedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "verificationDiagnostic": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CredentialVerificationDiagnostic"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CredentialReplacementRequest": {
+        "required": [
+          "replacement"
+        ],
+        "type": "object",
+        "properties": {
+          "replacement": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CredentialVerificationDiagnostic": {
+        "enum": [
+          "authenticationRejected",
+          "permissionDenied",
+          "rateLimited",
+          "timeout",
+          "providerUnavailable",
+          "unknown",
+          null
+        ]
+      },
+      "CredentialVerificationStatus": {
+        "enum": [
+          "neverVerified",
+          "verified",
+          "failed"
+        ]
+      },
+      "CsrfTokenResponse": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DatabaseHealthResponse": {
+        "required": [
+          "status",
+          "reachable",
+          "currentSchemaVersion",
+          "migrationCurrent"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/InfrastructureHealthStatus"
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "currentSchemaVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "migrationCurrent": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EffectResponse": {
+        "required": [
+          "type",
+          "target",
+          "tag"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ProposedMutationType"
+          },
+          "target": {
+            "type": "string"
+          },
+          "tag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EngineeringReadyRateResponse": {
+        "required": [
+          "numerator",
+          "denominator",
+          "percentage"
+        ],
+        "type": "object",
+        "properties": {
+          "numerator": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "denominator": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "percentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EnvironmentAiCredentialRequest": {
+        "required": [
+          "environmentVariableName"
+        ],
+        "type": "object",
+        "properties": {
+          "environmentVariableName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EnvironmentReferenceRequest": {
+        "required": [
+          "environmentVariableName"
+        ],
+        "type": "object",
+        "properties": {
+          "environmentVariableName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EstimatedAiCostSummaryResponse": {
+        "required": [
+          "amount",
+          "currency",
+          "evaluationsWithEstimate",
+          "evaluationsWithoutEstimate",
+          "complete"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evaluationsWithEstimate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "evaluationsWithoutEstimate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EstimatedCostResponse": {
+        "required": [
+          "amount",
+          "currency",
+          "pricingIdentity"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "pricingIdentity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EvaluationAmbiguity": {
+        "required": [
+          "criterionId",
+          "description",
+          "requiredClarification"
+        ],
+        "type": "object",
+        "properties": {
+          "criterionId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "requiredClarification": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EvaluationDeficiency": {
+        "required": [
+          "criterionId",
+          "reason",
+          "requiredSupportAction"
+        ],
+        "type": "object",
+        "properties": {
+          "criterionId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requiredSupportAction": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EvaluationProcessingStatus": {
+        "enum": [
+          "completed",
+          "error"
+        ]
+      },
+      "ExclusionRequest": {
+        "required": [
+          "id",
+          "field",
+          "operator",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "field": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "operator": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "values": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExclusionResponse": {
+        "required": [
+          "id",
+          "field",
+          "operator",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionMode": {
+        "enum": [
+          "live",
+          "dryRun"
+        ]
+      },
+      "HomeHealthWarningResponse": {
+        "required": [
+          "code",
+          "title",
+          "message",
+          "detailUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "detailUrl": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "HomeSummaryResponse": {
+        "required": [
+          "windowDays",
+          "generatedAtUtc",
+          "windowStartInclusiveUtc",
+          "windowEndExclusiveUtc",
+          "evaluatedCount",
+          "engineeringReadyCount",
+          "intakeIncompleteCount",
+          "errorCount",
+          "notEligibleCount",
+          "skippedCount",
+          "duplicateUpdatesSuppressedCount",
+          "engineeringReadyRate",
+          "estimatedAiCost",
+          "recentRuns",
+          "healthWarnings"
+        ],
+        "type": "object",
+        "properties": {
+          "windowDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "generatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "windowStartInclusiveUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "windowEndExclusiveUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "evaluatedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "engineeringReadyCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "intakeIncompleteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "errorCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "notEligibleCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skippedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "duplicateUpdatesSuppressedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "engineeringReadyRate": {
+            "$ref": "#/components/schemas/EngineeringReadyRateResponse"
+          },
+          "estimatedAiCost": {
+            "$ref": "#/components/schemas/EstimatedAiCostSummaryResponse"
+          },
+          "recentRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunSummaryResponse"
+            }
+          },
+          "healthWarnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeHealthWarningResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "InfrastructureHealthStatus": {
+        "enum": [
+          "healthy",
+          "unavailable"
+        ]
+      },
+      "IntakeDecision": {
+        "enum": [
+          "pass",
+          "fail",
+          null
+        ]
+      },
+      "IntakeStateRequest": {
+        "required": [
+          "validatedTag",
+          "incompleteTag"
+        ],
+        "type": "object",
+        "properties": {
+          "validatedTag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "incompleteTag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "IntakeStateResponse": {
+        "required": [
+          "validatedTag",
+          "incompleteTag"
+        ],
+        "type": "object",
+        "properties": {
+          "validatedTag": {
+            "type": "string"
+          },
+          "incompleteTag": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "IntegrationHealthResponse": {
+        "required": [
+          "status",
+          "credentialConfigured",
+          "verificationStatus",
+          "lastVerifiedAtUtc",
+          "verificationDiagnostic",
+          "settingsReady",
+          "provider",
+          "model"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ConnectionHealthStatus"
+          },
+          "credentialConfigured": {
+            "type": "boolean"
+          },
+          "verificationStatus": {
+            "$ref": "#/components/schemas/CredentialVerificationStatus"
+          },
+          "lastVerifiedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "verificationDiagnostic": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CredentialVerificationDiagnostic"
+              }
+            ]
+          },
+          "settingsReady": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "LegacyProfileImportRequest": {
+        "required": [
+          "profileYaml",
+          "policyYaml"
+        ],
+        "type": "object",
+        "properties": {
+          "profileYaml": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyYaml": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "LocalUserRole": {
+        "enum": [
+          "admin",
+          "viewer"
+        ]
+      },
+      "LoginRequest": {
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManualWorkItemRunResult": {
+        "required": [
+          "workItemId",
+          "evaluatedRevision",
+          "eligibility",
+          "exclusionReason",
+          "processingStatus",
+          "decision",
+          "executionMode",
+          "runId",
+          "evaluationId",
+          "proposedMutationCount",
+          "errorCategory"
+        ],
+        "type": "object",
+        "properties": {
+          "workItemId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "evaluatedRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/WorkItemEligibility"
+          },
+          "exclusionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "processingStatus": {
+            "$ref": "#/components/schemas/EvaluationProcessingStatus"
+          },
+          "decision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IntakeDecision"
+              }
+            ]
+          },
+          "executionMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "evaluationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "proposedMutationCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "errorCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ModelPricing": {
+        "required": [
+          "provider",
+          "model",
+          "inputPerMillionTokens",
+          "outputPerMillionTokens",
+          "currency",
+          "identity"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "inputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "outputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "identity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ModelPricingRequest": {
+        "required": [
+          "provider",
+          "model",
+          "inputPerMillionTokens",
+          "outputPerMillionTokens",
+          "currency",
+          "identity"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "inputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "outputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "identity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ModelPricingResponse": {
+        "required": [
+          "provider",
+          "model",
+          "inputPerMillionTokens",
+          "outputPerMillionTokens",
+          "currency",
+          "identity"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "inputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "outputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "identity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "MutationAttemptResponse": {
+        "required": [
+          "type",
+          "target",
+          "tag",
+          "succeeded",
+          "attemptedAtUtc",
+          "providerStatusCode",
+          "safeErrorCategory"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ProposedMutationType"
+          },
+          "target": {
+            "type": "string"
+          },
+          "tag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "succeeded": {
+            "type": "boolean"
+          },
+          "attemptedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "providerStatusCode": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "safeErrorCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotApplicableRequest": {
+        "required": [
+          "allowed",
+          "requiresExplanation"
+        ],
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "requiresExplanation": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotApplicableResponse": {
+        "required": [
+          "allowed",
+          "requiresExplanation"
+        ],
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "requiresExplanation": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingAiRuntime": {
+        "required": [
+          "timeoutSeconds",
+          "pricing"
+        ],
+        "type": "object",
+        "properties": {
+          "timeoutSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pricing": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ModelPricing"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingAttachmentLimits": {
+        "required": [
+          "maximumCount",
+          "maximumBytesPerAttachment",
+          "maximumAggregateBytes",
+          "maximumPdfPages",
+          "maximumImageCount",
+          "maximumImageBytes",
+          "maximumCsvRows",
+          "maximumStructuredTextDepth"
+        ],
+        "type": "object",
+        "properties": {
+          "maximumCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumBytesPerAttachment": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumAggregateBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumPdfPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumImageCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumImageBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumCsvRows": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumStructuredTextDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingAudit": {
+        "required": [
+          "retentionDays"
+        ],
+        "type": "object",
+        "properties": {
+          "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingContentLimits": {
+        "required": [
+          "maximumTotalCharacters",
+          "maximumComments",
+          "maximumExtractedTextCharacters"
+        ],
+        "type": "object",
+        "properties": {
+          "maximumTotalCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumComments": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumExtractedTextCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingCriterion": {
+        "required": [
+          "id",
+          "displayName",
+          "description",
+          "applicability",
+          "na",
+          "evaluationGuidance"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "applicability": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "na": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingNotApplicable"
+              }
+            ]
+          },
+          "evaluationGuidance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingDefaults": {
+        "required": [
+          "values",
+          "serverSeededFields",
+          "requiredAdminFields"
+        ],
+        "type": "object",
+        "properties": {
+          "values": {
+            "$ref": "#/components/schemas/OnboardingProfileDraftValues"
+          },
+          "serverSeededFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiredAdminFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingDraftStateResponse": {
+        "required": [
+          "exists",
+          "revision",
+          "values",
+          "createdAtUtc",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "exists": {
+            "type": "boolean"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "values": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingProfileDraftValues"
+              }
+            ]
+          },
+          "createdAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingDraftUpdateRequest": {
+        "required": [
+          "expectedRevision",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "values": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingProfileDraftValues"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingExclusion": {
+        "required": [
+          "id",
+          "field",
+          "operator",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "field": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "operator": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "values": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingIntakeState": {
+        "required": [
+          "validatedTag",
+          "incompleteTag"
+        ],
+        "type": "object",
+        "properties": {
+          "validatedTag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "incompleteTag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingNotApplicable": {
+        "required": [
+          "allowed",
+          "requiresExplanation"
+        ],
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "requiresExplanation": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingPolicy": {
+        "required": [
+          "id",
+          "version",
+          "criteria"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "criteria": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OnboardingCriterion"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingProcessing": {
+        "required": [
+          "executionMode",
+          "concurrency",
+          "retries",
+          "contentLimits",
+          "attachmentLimits"
+        ],
+        "type": "object",
+        "properties": {
+          "executionMode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "concurrency": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "retries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "contentLimits": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingContentLimits"
+              }
+            ]
+          },
+          "attachmentLimits": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingAttachmentLimits"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingProfileDraftValues": {
+        "required": [
+          "profileVersion",
+          "policyUrl",
+          "intakeState",
+          "aiRuntime",
+          "schedule",
+          "processing",
+          "audit",
+          "exclusions",
+          "policy"
+        ],
+        "type": "object",
+        "properties": {
+          "profileVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "intakeState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingIntakeState"
+              }
+            ]
+          },
+          "aiRuntime": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingAiRuntime"
+              }
+            ]
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingSchedule"
+              }
+            ]
+          },
+          "processing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingProcessing"
+              }
+            ]
+          },
+          "audit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingAudit"
+              }
+            ]
+          },
+          "exclusions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OnboardingExclusion"
+            }
+          },
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingPolicy"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OnboardingSchedule": {
+        "required": [
+          "enabled",
+          "expression",
+          "timezone",
+          "initialLookback"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "expression": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "timezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "initialLookback": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OperationalActorResponse": {
+        "required": [
+          "type",
+          "userId",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/OperationalActorType"
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OperationalActorType": {
+        "enum": [
+          "user",
+          "system",
+          "historicalUnknown"
+        ]
+      },
+      "OperationalDecisionState": {
+        "enum": [
+          "pass",
+          "fail",
+          "error",
+          "notEligible"
+        ]
+      },
+      "OperationalRunStatus": {
+        "enum": [
+          "running",
+          "completed",
+          "completedWithErrors",
+          "error"
+        ]
+      },
+      "PolicyCriterionRequest": {
+        "required": [
+          "id",
+          "displayName",
+          "description",
+          "applicability",
+          "na",
+          "evaluationGuidance"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "applicability": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "na": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NotApplicableRequest"
+              }
+            ]
+          },
+          "evaluationGuidance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PolicyCriterionResponse": {
+        "required": [
+          "id",
+          "displayName",
+          "description",
+          "applicability",
+          "na",
+          "evaluationGuidance"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "applicability": {
+            "type": "string"
+          },
+          "na": {
+            "$ref": "#/components/schemas/NotApplicableResponse"
+          },
+          "evaluationGuidance": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PolicyRequest": {
+        "required": [
+          "id",
+          "version",
+          "criteria"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "criteria": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PolicyCriterionRequest"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PolicyResponse": {
+        "required": [
+          "id",
+          "version",
+          "fingerprint",
+          "url",
+          "criteria"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyCriterionResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessingRequest": {
+        "required": [
+          "executionMode",
+          "concurrency",
+          "retries",
+          "contentLimits",
+          "attachmentLimits"
+        ],
+        "type": "object",
+        "properties": {
+          "executionMode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "concurrency": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "retries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "contentLimits": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContentLimitsRequest"
+              }
+            ]
+          },
+          "attachmentLimits": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AttachmentLimitsRequest"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessingResponse": {
+        "required": [
+          "executionMode",
+          "concurrency",
+          "retries",
+          "contentLimits",
+          "attachmentLimits"
+        ],
+        "type": "object",
+        "properties": {
+          "executionMode": {
+            "type": "string"
+          },
+          "concurrency": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "retries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "contentLimits": {
+            "$ref": "#/components/schemas/ContentLimitsResponse"
+          },
+          "attachmentLimits": {
+            "$ref": "#/components/schemas/AttachmentLimitsResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfileActivationResponse": {
+        "required": [
+          "runtimeActivationCurrent",
+          "restartRequired",
+          "aiRuntimeActivationPending",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "runtimeActivationCurrent": {
+            "type": "boolean"
+          },
+          "restartRequired": {
+            "type": "boolean"
+          },
+          "aiRuntimeActivationPending": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "generationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfileExportResponse": {
+        "required": [
+          "formatVersion",
+          "profile"
+        ],
+        "type": "object",
+        "properties": {
+          "formatVersion": {
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileStateResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfileStateResponse": {
+        "required": [
+          "exists",
+          "configurationRevision",
+          "profileId",
+          "profileVersion",
+          "policy",
+          "azureDevOps",
+          "ai",
+          "intakeState",
+          "schedule",
+          "processing",
+          "audit",
+          "exclusions",
+          "activation"
+        ],
+        "type": "object",
+        "properties": {
+          "exists": {
+            "type": "boolean"
+          },
+          "configurationRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profileId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profileVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PolicyResponse"
+              }
+            ]
+          },
+          "azureDevOps": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AzureDevOpsProfileResponse"
+              }
+            ]
+          },
+          "ai": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AiProfileResponse"
+              }
+            ]
+          },
+          "intakeState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IntakeStateResponse"
+              }
+            ]
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScheduleResponse"
+              }
+            ]
+          },
+          "processing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProcessingResponse"
+              }
+            ]
+          },
+          "audit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuditResponse"
+              }
+            ]
+          },
+          "exclusions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExclusionResponse"
+            }
+          },
+          "activation": {
+            "$ref": "#/components/schemas/ProfileActivationResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfileUpdateRequest": {
+        "required": [
+          "expectedRevision",
+          "profile"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileWriteRequest"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfileWriteRequest": {
+        "required": [
+          "profileVersion",
+          "policyUrl",
+          "intakeState",
+          "aiRuntime",
+          "schedule",
+          "processing",
+          "audit",
+          "exclusions",
+          "policy"
+        ],
+        "type": "object",
+        "properties": {
+          "profileVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "intakeState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IntakeStateRequest"
+              }
+            ]
+          },
+          "aiRuntime": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AiRuntimeRequest"
+              }
+            ]
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScheduleRequest"
+              }
+            ]
+          },
+          "processing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProcessingRequest"
+              }
+            ]
+          },
+          "audit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuditRequest"
+              }
+            ]
+          },
+          "exclusions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExclusionRequest"
+            }
+          },
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PolicyRequest"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProposedMutationType": {
+        "enum": [
+          "removeTag",
+          "addTag",
+          "postComment"
+        ]
+      },
+      "RecentFailureResponse": {
+        "required": [
+          "runId",
+          "occurredAtUtc",
+          "status",
+          "category",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationalRunStatus"
+          },
+          "category": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunDetailResponse": {
+        "required": [
+          "summary",
+          "profileVersion",
+          "savedQueryId",
+          "savedQueryFingerprint",
+          "policyVersion",
+          "policyFingerprint",
+          "configurationFingerprint",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/RunSummaryResponse"
+          },
+          "profileVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "savedQueryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "savedQueryFingerprint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "policyFingerprint": {
+            "type": "string"
+          },
+          "configurationFingerprint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunItemSummaryResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunExecutionResponse": {
+        "required": [
+          "runId",
+          "invocationType",
+          "status",
+          "effectiveMode",
+          "configurationGenerationId",
+          "detailUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invocationType": {
+            "$ref": "#/components/schemas/RunTriggerType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationalRunStatus"
+          },
+          "effectiveMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "configurationGenerationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "detailUrl": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunHistoryPageResponse": {
+        "required": [
+          "page",
+          "pageSize",
+          "totalCount",
+          "totalPages",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunSummaryResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunItemDetailResponse": {
+        "required": [
+          "evaluationId",
+          "runId",
+          "parentRunId",
+          "workItemId",
+          "evaluatedRevision",
+          "azureDevOpsUrl",
+          "decision",
+          "decisionLabel",
+          "eligibility",
+          "eligibilityReason",
+          "processingStatus",
+          "effectiveMode",
+          "configurationGenerationId",
+          "selectionReason",
+          "policyVersion",
+          "policyFingerprint",
+          "promptVersion",
+          "provider",
+          "model",
+          "applicableCriteria",
+          "satisfiedCriteria",
+          "missingCriteria",
+          "ambiguities",
+          "engineeringSummary",
+          "proposedEffects",
+          "mutationAttempts",
+          "actualEffects",
+          "updateSuppressed",
+          "suppressionReason",
+          "materiallyChanged",
+          "tokenUsage",
+          "estimatedCost",
+          "errors"
+        ],
+        "type": "object",
+        "properties": {
+          "evaluationId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parentRunId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "workItemId": {
+            "type": "string"
+          },
+          "evaluatedRevision": {
+            "type": "string"
+          },
+          "azureDevOpsUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/OperationalDecisionState"
+          },
+          "decisionLabel": {
+            "type": "string"
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/WorkItemEligibility"
+          },
+          "eligibilityReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "processingStatus": {
+            "$ref": "#/components/schemas/EvaluationProcessingStatus"
+          },
+          "effectiveMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "configurationGenerationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "selectionReason": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "policyFingerprint": {
+            "type": "string"
+          },
+          "promptVersion": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "applicableCriteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "satisfiedCriteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missingCriteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationDeficiency"
+            }
+          },
+          "ambiguities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationAmbiguity"
+            }
+          },
+          "engineeringSummary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "proposedEffects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectResponse"
+            }
+          },
+          "mutationAttempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MutationAttemptResponse"
+            }
+          },
+          "actualEffects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectResponse"
+            }
+          },
+          "updateSuppressed": {
+            "type": "boolean"
+          },
+          "suppressionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "materiallyChanged": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "tokenUsage": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TokenUsageResponse"
+              }
+            ]
+          },
+          "estimatedCost": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EstimatedCostResponse"
+              }
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeOperationalErrorResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunItemSummaryResponse": {
+        "required": [
+          "evaluationId",
+          "workItemId",
+          "azureDevOpsUrl",
+          "decision",
+          "decisionLabel",
+          "eligibility",
+          "processingStatus",
+          "updateSuppressed",
+          "configurationGenerationId",
+          "tokenUsage",
+          "estimatedCost"
+        ],
+        "type": "object",
+        "properties": {
+          "evaluationId": {
+            "type": "string"
+          },
+          "workItemId": {
+            "type": "string"
+          },
+          "azureDevOpsUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/OperationalDecisionState"
+          },
+          "decisionLabel": {
+            "type": "string"
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/WorkItemEligibility"
+          },
+          "processingStatus": {
+            "$ref": "#/components/schemas/EvaluationProcessingStatus"
+          },
+          "updateSuppressed": {
+            "type": "boolean"
+          },
+          "configurationGenerationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "tokenUsage": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TokenUsageResponse"
+              }
+            ]
+          },
+          "estimatedCost": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EstimatedCostResponse"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunSummaryResponse": {
+        "required": [
+          "runId",
+          "invocationType",
+          "triggeredBy",
+          "startedAtUtc",
+          "completedAtUtc",
+          "durationMilliseconds",
+          "effectiveMode",
+          "status",
+          "profileId",
+          "configurationGenerationId",
+          "ticketsDiscovered",
+          "ticketsEvaluated",
+          "engineeringReadyCount",
+          "intakeIncompleteCount",
+          "errorCount",
+          "notEligibleCount",
+          "skippedCount",
+          "duplicateUpdatesSuppressedCount",
+          "azureDevOpsMutationCount",
+          "tokenUsage",
+          "estimatedCost",
+          "errors"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invocationType": {
+            "$ref": "#/components/schemas/RunTriggerType"
+          },
+          "triggeredBy": {
+            "$ref": "#/components/schemas/OperationalActorResponse"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "durationMilliseconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "effectiveMode": {
+            "$ref": "#/components/schemas/ExecutionMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationalRunStatus"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "configurationGenerationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "ticketsDiscovered": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ticketsEvaluated": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "engineeringReadyCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "intakeIncompleteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "errorCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "notEligibleCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skippedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "duplicateUpdatesSuppressedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "azureDevOpsMutationCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "tokenUsage": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TokenUsageResponse"
+              }
+            ]
+          },
+          "estimatedCost": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EstimatedCostResponse"
+              }
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeOperationalErrorResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeHealthResponse": {
+        "required": [
+          "status",
+          "activeGenerationId",
+          "activationCurrent"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RuntimeHealthStatus"
+          },
+          "activeGenerationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "activationCurrent": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeHealthStatus": {
+        "enum": [
+          "active",
+          "activationFailed",
+          "noActiveGeneration"
+        ]
+      },
+      "RunTriggerType": {
+        "enum": [
+          "scheduled",
+          "manualIncremental",
+          "manualWorkItem"
+        ]
+      },
+      "SafeOperationalErrorResponse": {
+        "required": [
+          "category",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SafeUserResponse": {
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "role",
+          "createdAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/LocalUserRole"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScheduleRequest": {
+        "required": [
+          "enabled",
+          "expression",
+          "timezone",
+          "initialLookback"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "expression": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "timezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "initialLookback": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScheduleResponse": {
+        "required": [
+          "enabled",
+          "expression",
+          "timezone",
+          "initialLookback",
+          "activationPending"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "expression": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "initialLookback": {
+            "type": "string"
+          },
+          "activationPending": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SchedulerHealthResponse": {
+        "required": [
+          "status",
+          "scheduled",
+          "timezone",
+          "nextOccurrenceUtc",
+          "activeGenerationId"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/SchedulerHealthStatus"
+          },
+          "scheduled": {
+            "type": "boolean"
+          },
+          "timezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nextOccurrenceUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "activeGenerationId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SchedulerHealthStatus": {
+        "enum": [
+          "manualOnly",
+          "scheduled",
+          "waiting",
+          "activationFailed"
+        ]
+      },
+      "SecretSourceKind": {
+        "enum": [
+          "locallyEncrypted",
+          "environmentReference",
+          null
+        ]
+      },
+      "SetupFinalizeRequest": {
+        "required": [
+          "expectedDraftRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedDraftRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetupHealthResponse": {
+        "required": [
+          "status",
+          "complete",
+          "profileConfigured",
+          "savedQueryConfirmed"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/SetupHealthStatus"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "profileConfigured": {
+            "type": "boolean"
+          },
+          "savedQueryConfirmed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetupHealthStatus": {
+        "enum": [
+          "ready",
+          "incomplete"
+        ]
+      },
+      "SetupProgressRequest": {
+        "required": [
+          "step"
+        ],
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetupProgressResponse": {
+        "required": [
+          "lastVisitedStep",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "lastVisitedStep": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetupStatusResponse": {
+        "required": [
+          "infrastructureReady",
+          "adminConfigured",
+          "profileConfigured",
+          "onboardingDraftExists",
+          "profileDetailsComplete",
+          "policyDetailsComplete",
+          "azureDevOpsCredentialConfigured",
+          "azureDevOpsCredentialVerified",
+          "azureDevOpsSavedQueryConfirmed",
+          "aiCredentialConfigured",
+          "aiCredentialVerified",
+          "aiModelConfigured",
+          "requiredAiCredentialSlot",
+          "runtimeActivationCurrent",
+          "setupComplete",
+          "lastVisitedStep",
+          "progressUpdatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "infrastructureReady": {
+            "type": "boolean"
+          },
+          "adminConfigured": {
+            "type": "boolean"
+          },
+          "profileConfigured": {
+            "type": "boolean"
+          },
+          "onboardingDraftExists": {
+            "type": "boolean"
+          },
+          "profileDetailsComplete": {
+            "type": "boolean"
+          },
+          "policyDetailsComplete": {
+            "type": "boolean"
+          },
+          "azureDevOpsCredentialConfigured": {
+            "type": "boolean"
+          },
+          "azureDevOpsCredentialVerified": {
+            "type": "boolean"
+          },
+          "azureDevOpsSavedQueryConfirmed": {
+            "type": "boolean"
+          },
+          "aiCredentialConfigured": {
+            "type": "boolean"
+          },
+          "aiCredentialVerified": {
+            "type": "boolean"
+          },
+          "aiModelConfigured": {
+            "type": "boolean"
+          },
+          "requiredAiCredentialSlot": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "runtimeActivationCurrent": {
+            "type": "boolean"
+          },
+          "setupComplete": {
+            "type": "boolean"
+          },
+          "lastVisitedStep": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "progressUpdatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SystemHealthResponse": {
+        "required": [
+          "generatedAtUtc",
+          "application",
+          "database",
+          "setup",
+          "runtime",
+          "azureDevOps",
+          "ai",
+          "scheduler",
+          "recentFailures",
+          "aiDiagnostics"
+        ],
+        "type": "object",
+        "properties": {
+          "generatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "application": {
+            "$ref": "#/components/schemas/ApplicationHealthResponse"
+          },
+          "database": {
+            "$ref": "#/components/schemas/DatabaseHealthResponse"
+          },
+          "setup": {
+            "$ref": "#/components/schemas/SetupHealthResponse"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/RuntimeHealthResponse"
+          },
+          "azureDevOps": {
+            "$ref": "#/components/schemas/IntegrationHealthResponse"
+          },
+          "ai": {
+            "$ref": "#/components/schemas/IntegrationHealthResponse"
+          },
+          "scheduler": {
+            "$ref": "#/components/schemas/SchedulerHealthResponse"
+          },
+          "recentFailures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentFailureResponse"
+            }
+          },
+          "aiDiagnostics": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AiDiagnosticMetadataResponse"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "TokenUsageResponse": {
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "totalTokens"
+        ],
+        "type": "object",
+        "properties": {
+          "inputTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "outputTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidateAiModelRequest": {
+        "required": [
+          "provider",
+          "model"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidateAiModelResponse": {
+        "required": [
+          "confirmationToken",
+          "expiresAtUtc",
+          "provider",
+          "model",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmationToken": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidateSavedQueryRequest": {
+        "required": [
+          "organizationUrl",
+          "project",
+          "savedQuery"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "project": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "savedQuery": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidateSavedQueryResponse": {
+        "required": [
+          "confirmationToken",
+          "expiresAtUtc",
+          "organizationUrl",
+          "project",
+          "savedQueryId",
+          "candidateFingerprint",
+          "totalCount",
+          "preview"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmationToken": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "organizationUrl": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "savedQueryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "candidateFingerprint": {
+            "type": "string"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "preview": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AzureDevOpsQueryPreviewItem"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VersionResponse": {
+        "required": [
+          "application",
+          "version",
+          "environment"
+        ],
+        "type": "object",
+        "properties": {
+          "application": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkItemEligibility": {
+        "enum": [
+          "eligible",
+          "notEligible",
+          "unknown"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "IntakeGate.Host"
+    },
+    {
+      "name": "OperationalEndpoints"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IntakeGate.Application/IntakeGate.Application.csproj" />
+    <Project Path="src/IntakeGate.Domain/IntakeGate.Domain.csproj" />
+    <Project Path="src/IntakeGate.Host/IntakeGate.Host.csproj" />
+    <Project Path="src/IntakeGate.Infrastructure/IntakeGate.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IntakeGate.AcceptanceTests/IntakeGate.AcceptanceTests.csproj" />
+    <Project Path="tests/IntakeGate.IntegrationTests/IntakeGate.IntegrationTests.csproj" />
+    <Project Path="tests/IntakeGate.UnitTests/IntakeGate.UnitTests.csproj" />
+  </Folder>
+</Solution>

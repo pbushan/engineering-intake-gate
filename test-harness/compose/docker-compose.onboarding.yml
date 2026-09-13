@@ -1,0 +1,21 @@
+services:
+  mock-ado:
+    build:
+      context: ./test-harness/mock-ado
+    environment:
+      MOCK_ADO_PAT: synthetic-mock-ado-pat
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8081/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  intake-gate:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      AiManagement__UseDeterministicFake: "true"
+      AiRuntime__FakeScenario: pass
+      Runtime__UseRegisteredAdapters: "false"
+    depends_on:
+      mock-ado:
+        condition: service_healthy

@@ -1,0 +1,11 @@
+services:
+  intake-gate:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Test
+      AiRuntime__Enabled: "true"
+      AiRuntime__RequireDryRun: "true"
+      AiRuntime__Provider: ${REAL_AI_PROVIDER:?Set REAL_AI_PROVIDER to openai or anthropic}
+      AiRuntime__Model: ${REAL_AI_MODEL:?Set REAL_AI_MODEL}
+      AiRuntime__CredentialEnvironmentVariable: REAL_AI_API_KEY
+      AiRuntime__TimeoutSeconds: ${REAL_AI_TIMEOUT_SECONDS:-60}
+      REAL_AI_API_KEY: ${REAL_AI_API_KEY:?Set REAL_AI_API_KEY through the opt-in script}

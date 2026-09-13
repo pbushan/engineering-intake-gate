@@ -1,0 +1,51 @@
+{
+  "name": "@intake-gate/web",
+  "version": "2026.9.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0 <27"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -b --pretty false",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "test:a11y": "vitest run src/test/accessibility.test.tsx",
+    "contracts:generate": "openapi-typescript openapi/intake-gate.v1.json -o src/api/generated/schema.d.ts",
+    "contracts:check": "node scripts/check-generated-contracts.mjs",
+    "check": "npm run contracts:check && npm run typecheck && npm run lint && npm run test && npm run build",
+    "audit:ci": "npm audit --audit-level=high"
+  },
+  "dependencies": {
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "@mui/icons-material": "9.4.0",
+    "@mui/material": "9.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router-dom": "7.18.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.1",
+    "eslint": "10.10.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.2",
+    "globals": "17.3.0",
+    "jsdom": "29.0.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0",
+    "vite": "8.3.0",
+    "vitest": "5.0.0",
+    "vitest-axe": "0.1.0"
+  }
+}

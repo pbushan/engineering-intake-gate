@@ -1,0 +1,47 @@
+profile:
+  id: alternate-example
+  version: "2"
+intakePolicy:
+  path: intake-policy.yaml
+  url: https://example.invalid/engineering/alternate-intake-standard
+intakeState:
+  validatedTag: INTAKE-VALIDATED
+  incompleteTag: INTAKE-INCOMPLETE
+ado:
+  organizationUrl: https://dev.azure.com/alternate-example
+  project: AlternateProject
+  savedQueryId: 22222222-2222-2222-2222-222222222222
+  authentication:
+    patEnvironmentVariable: ALTERNATE_ADO_PAT
+ai:
+  provider: anthropic
+  model: alternate-example-model
+  timeoutSeconds: 60
+  authentication:
+    apiKeyEnvironmentVariable: ALTERNATE_AI_API_KEY
+  pricing: []
+schedule:
+  enabled: true
+  expression: "0 */30 * * * *"
+  timezone: UTC
+  initialLookback: 2.00:00:00
+processing:
+  executionMode: LIVE
+  concurrency: 1
+  retries: 1
+  contentLimits:
+    maximumTotalCharacters: 80000
+    maximumComments: 50
+    maximumExtractedTextCharacters: 60000
+  attachmentLimits:
+    maximumCount: 10
+    maximumBytesPerAttachment: 5242880
+    maximumAggregateBytes: 20971520
+    maximumPdfPages: 100
+    maximumImageCount: 5
+    maximumImageBytes: 5242880
+    maximumCsvRows: 1000
+    maximumStructuredTextDepth: 32
+audit:
+  retentionDays: 60
+exclusions: []

@@ -1,0 +1,46 @@
+services:
+  mock-ado:
+    build:
+      context: ../../test-harness/mock-ado
+    environment:
+      MOCK_ADO_PAT: ${MOCK_ADO_PAT:-synthetic-mock-ado-pat}
+    ports:
+      - "${MOCK_ADO_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8081/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  intake-gate:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      OperationalDatabase__Path: /app/data/intake-gate.db
+      AdoRuntime__OrganizationUrl: http://mock-ado:8081/generic-org
+      AdoRuntime__Project: GenericProject
+      AdoRuntime__SavedQueryId: 11111111-1111-1111-1111-111111111111
+      AdoRuntime__CredentialEnvironmentVariable: INTAKE_ADO_PAT
+      INTAKE_ADO_PAT: ${MOCK_ADO_PAT:-synthetic-mock-ado-pat}
+      AiRuntime__FakeScenario: ${INTAKE_GATE_FAKE_SCENARIO:-pass}
+      AiManagement__UseDeterministicFake: ${INTAKE_GATE_FAKE_AI_MANAGEMENT:-false}
+      Runtime__UseRegisteredAdapters: "false"
+    ports:
+      - "${INTAKE_GATE_PORT:-8080}:8080"
+    volumes:
+      - intake-gate-test-data:/app/data
+      - ${INTAKE_GATE_PROFILE_DIRECTORY:-../../profiles/example}:/app/config:ro
+    healthcheck:
+      test: ["CMD", "dotnet", "IntakeGate.Host.dll", "--health-check"]
+      interval: 5s
+      timeout: 6s
+      retries: 12
+      start_period: 5s
+    depends_on:
+      mock-ado:
+        condition: service_healthy
+
+volumes:
+  intake-gate-test-data:
