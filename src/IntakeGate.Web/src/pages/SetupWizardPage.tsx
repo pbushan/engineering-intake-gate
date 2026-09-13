@@ -51,6 +51,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { ApiError, asApiError } from '../api/api-error';
 import { apiClient } from '../api/client';
+import { ValidationSummary } from '../components/ValidationSummary';
 import type {
   AiModelCandidate,
   AiModelDescriptor,
@@ -100,6 +101,53 @@ const providerLabel = (provider: AiProvider) => provider === 'openai' ? 'OpenAI'
 const valueOf = (value: number | string | null | undefined) => value == null ? '' : String(value);
 const setupError = (message: string) => new ApiError('validation', message, { code: 'SetupInputRequired' });
 
+const validationLabels: Readonly<Record<string, string>> = {
+  'ado.connection': 'Azure DevOps connection',
+  'ado.organizationUrl': 'Organization URL',
+  'ado.project': 'Project',
+  'ado.credential': 'Azure DevOps credential',
+  'ado.environmentVariableName': 'Azure DevOps environment variable',
+  'ado.savedQuery': 'Saved-query URL or GUID',
+  'ai.provider': 'AI provider',
+  'ai.credential': 'AI credential',
+  'ai.environmentVariableName': 'AI environment variable',
+  'ai.model': 'Model ID',
+  policyUrl: 'Policy URL',
+  'intakeState.validatedTag': 'Engineering Ready tag',
+  'intakeState.incompleteTag': 'Intake Incomplete tag',
+  'schedule.timezone': 'Timezone',
+  'schedule.initialLookback': 'Initial lookback',
+  'schedule.expression': 'Schedule expression',
+  'processing.concurrency': 'Concurrency',
+  'processing.retries': 'Retries',
+  'processing.contentLimits.maximumTotalCharacters': 'Maximum total characters',
+  'processing.contentLimits.maximumComments': 'Maximum comments',
+  'processing.contentLimits.maximumExtractedTextCharacters': 'Maximum extracted text characters',
+  'processing.attachmentLimits.maximumCount': 'Maximum attachments',
+  'processing.attachmentLimits.maximumBytesPerAttachment': 'Bytes per attachment',
+  'processing.attachmentLimits.maximumAggregateBytes': 'Aggregate attachment bytes',
+  'processing.attachmentLimits.maximumPdfPages': 'Maximum PDF pages',
+  'processing.attachmentLimits.maximumImageCount': 'Maximum images',
+  'processing.attachmentLimits.maximumImageBytes': 'Maximum image bytes',
+  'processing.attachmentLimits.maximumCsvRows': 'Maximum CSV rows',
+  'processing.attachmentLimits.maximumStructuredTextDepth': 'Structured text depth',
+  'aiRuntime.timeoutSeconds': 'AI timeout',
+  'audit.retentionDays': 'Retention days',
+  'policy.id': 'Policy ID',
+  'policy.version': 'Policy version',
+  'policy.criteria': 'Intake criteria',
+};
+
+const validationLabel = (key: string) => {
+  const criterion = /^policy\.criteria\[(\d+)]\.(.+)$/.exec(key);
+  if (!criterion) return validationLabels[key] ?? key;
+  const suffix: Record<string, string> = {
+    id: 'ID', displayName: 'display name', description: 'description',
+    evaluationGuidance: 'evaluation guidance', applicability: 'applicability', na: 'N/A settings',
+  };
+  return `Criterion ${Number(criterion[1]) + 1} ${suffix[criterion[2]!] ?? criterion[2]}`;
+};
+
 function StatusLine({ label, ready, detail }: { label: string; ready: boolean; detail?: string }) {
   return (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
@@ -109,9 +157,9 @@ function StatusLine({ label, ready, detail }: { label: string; ready: boolean; d
   );
 }
 
-function SectionCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+function SectionCard({ title, description, children, id, invalid = false }: { title: string; description?: string; children: React.ReactNode; id?: string; invalid?: boolean }) {
   return (
-    <Card><CardContent><Stack spacing={2.5}>
+    <Card id={id} tabIndex={invalid ? -1 : undefined} sx={invalid ? { outline: '2px solid', outlineColor: 'error.main' } : undefined}><CardContent><Stack spacing={2.5}>
       <Box><Typography component="h2" variant="h2">{title}</Typography>{description ? <Typography color="text.secondary" sx={{ mt: 0.5 }}>{description}</Typography> : null}</Box>
       {children}
     </Stack></CardContent></Card>
@@ -246,8 +294,10 @@ export function SetupWizardPage() {
       const message = await task();
       if (message) setNotice(message);
     } catch (reason) {
-      setError(asApiError(reason));
-      headingRef.current?.focus();
+      const nextError = asApiError(reason);
+      setError(nextError);
+      if (!Object.keys(nextError.fieldErrors).length && !Object.keys(nextError.sectionErrors).length)
+        headingRef.current?.focus();
     } finally {
       setBusy(null);
     }
@@ -268,6 +318,18 @@ export function SetupWizardPage() {
     });
     setDraftDirty(true);
     draftDirtyRef.current = true;
+  };
+
+  const clearValidation = (key: string) => {
+    setError((current) => current?.kind === 'validation' ? current.withoutField(key) : current);
+  };
+
+  const focusValidationTarget = (key: string) => {
+    const target = document.getElementById(`setup-${key}`);
+    target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLButtonElement)
+      target.focus();
+    else target?.querySelector<HTMLElement>('input, textarea, button, [tabindex="0"]')?.focus();
   };
 
   const saveDraft = async (): Promise<WizardData> => {
@@ -313,7 +375,11 @@ export function SetupWizardPage() {
       void action('save-profile', async () => {
         const next = await saveDraft();
         if (!next.setup.profileDetailsComplete || !next.setup.policyDetailsComplete) {
-          throw setupError('Complete all required profile and policy fields.');
+          throw new ApiError('validation', 'Some profile and policy fields need attention.', {
+            code: 'ValidationFailed',
+            fieldErrors: next.draft.fieldErrors ?? {},
+            sectionErrors: next.draft.sectionErrors ?? {},
+          });
         }
         goTo(5);
         return 'Profile and policy draft saved.';
@@ -360,27 +426,29 @@ export function SetupWizardPage() {
 
       <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2.5 }, overflowX: 'auto' }}>
         <Stepper activeStep={activeStep} alternativeLabel aria-label="Setup progress" sx={{ minWidth: 760 }}>
-          {setupSteps.map((step) => <Step key={step.id}><StepLabel>{step.label}</StepLabel></Step>)}
+          {setupSteps.map((step, index) => <Step key={step.id}><StepLabel error={index === activeStep && error?.kind === 'validation'}>{step.label}</StepLabel></Step>)}
         </Stepper>
       </Paper>
 
-      {error ? <Alert severity="error" role="alert" aria-live="assertive" onClose={() => setError(null)}><AlertTitle>Action not completed</AlertTitle>{error.message}</Alert> : null}
+      {error && (Object.keys(error.fieldErrors).length || Object.keys(error.sectionErrors).length)
+        ? <ValidationSummary error={error} labels={Object.fromEntries([...Object.keys(error.fieldErrors), ...Object.keys(error.sectionErrors)].map((key) => [key, validationLabel(key)]))} focusTarget={focusValidationTarget} />
+        : error ? <Alert severity={error.kind === 'conflict' ? 'warning' : 'error'} role="alert" aria-live="assertive" onClose={() => setError(null)}><AlertTitle>We couldn&apos;t complete this action</AlertTitle>{error.message}</Alert> : null}
       {notice ? <Alert severity="success" role="status" aria-live="polite" onClose={() => setNotice(null)}>{notice}</Alert> : null}
 
       {activeStep === 0 ? <WelcomeStep /> : null}
       {activeStep === 1 ? (
         <Stack spacing={2.5}>
-          <SectionCard title="Azure DevOps connection" description="Save the organization and project through the backend, then verify access. The browser never connects to Azure DevOps directly.">
+          <SectionCard id="setup-ado.connection" invalid={Boolean(error?.sectionErrors['ado.connection'])} title="Azure DevOps connection" description="Save the organization and project through the backend, then verify access. The browser never connects to Azure DevOps directly.">
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 7 }}><TextField fullWidth required label="Organization URL" value={adoOrganization} onChange={(event) => setAdoOrganization(event.target.value)} helperText="The HTTPS URL for the Azure DevOps organization." /></Grid>
-              <Grid size={{ xs: 12, md: 5 }}><TextField fullWidth required label="Project" value={adoProject} onChange={(event) => setAdoProject(event.target.value)} /></Grid>
+              <Grid size={{ xs: 12, md: 7 }}><TextField id="setup-ado.organizationUrl" fullWidth required label="Organization URL" value={adoOrganization} onChange={(event) => { setAdoOrganization(event.target.value); clearValidation('ado.organizationUrl'); }} error={Boolean(error?.fieldErrors['ado.organizationUrl'])} helperText={error?.fieldErrors['ado.organizationUrl']?.[0] ?? 'The HTTPS URL for the Azure DevOps organization.'} /></Grid>
+              <Grid size={{ xs: 12, md: 5 }}><TextField id="setup-ado.project" fullWidth required label="Project" value={adoProject} onChange={(event) => { setAdoProject(event.target.value); clearValidation('ado.project'); }} error={Boolean(error?.fieldErrors['ado.project'])} helperText={error?.fieldErrors['ado.project']?.[0]} /></Grid>
             </Grid>
             <Button sx={{ alignSelf: 'flex-start' }} variant="outlined" startIcon={<SaveOutlined />} disabled={busy !== null || !adoOrganization.trim() || !adoProject.trim()} onClick={() => void action('ado-settings', async () => { await apiClient.saveAzureDevOpsSettings(adoOrganization.trim(), adoProject.trim()); await refresh(); return 'Azure DevOps settings saved.'; })}>{busy === 'ado-settings' ? 'Saving…' : 'Save settings'}</Button>
           </SectionCard>
           <SectionCard title="Azure DevOps credential" description="A PAT is used only by the backend. Saved credentials can be replaced but never redisplayed.">
             <CredentialStatus metadata={data.adoCredential} />
             <FormControl><FormLabel id="ado-secret-source">Credential source</FormLabel><RadioGroup row aria-labelledby="ado-secret-source" value={adoSecretMode} onChange={(event) => setAdoSecretMode(event.target.value as 'local' | 'environment')}><FormControlLabel value="local" control={<Radio />} label="Local encrypted PAT" /><FormControlLabel value="environment" control={<Radio />} label="Environment-variable reference" /></RadioGroup></FormControl>
-            {adoSecretMode === 'local' ? <TextField type="password" autoComplete="new-password" label={data.adoCredential.configured ? 'Replacement PAT' : 'Personal access token'} value={adoSecret} onChange={(event) => setAdoSecret(event.target.value)} helperText="Visible only while entering or replacing. Use the minimum read permissions needed for the saved query." /> : <TextField label="Environment variable name" value={adoEnvironment} onChange={(event) => setAdoEnvironment(event.target.value)} helperText="Only the variable name is stored. The backend environment must provide its value." />}
+            {adoSecretMode === 'local' ? <TextField id="setup-ado.credential" type="password" autoComplete="new-password" label={data.adoCredential.configured ? 'Replacement PAT' : 'Personal access token'} value={adoSecret} onChange={(event) => { setAdoSecret(event.target.value); clearValidation('ado.credential'); }} error={Boolean(error?.fieldErrors['ado.credential'])} helperText={error?.fieldErrors['ado.credential']?.[0] ?? 'Visible only while entering or replacing. Use the minimum read permissions needed for the saved query.'} /> : <TextField id="setup-ado.environmentVariableName" label="Environment variable name" value={adoEnvironment} onChange={(event) => { setAdoEnvironment(event.target.value); clearValidation('ado.environmentVariableName'); }} error={Boolean(error?.fieldErrors['ado.environmentVariableName'])} helperText={error?.fieldErrors['ado.environmentVariableName']?.[0] ?? 'Only the variable name is stored. The backend environment must provide its value.'} />}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <Button variant="contained" disabled={busy !== null || (adoSecretMode === 'local' ? !adoSecret : !adoEnvironment)} onClick={() => void action('ado-credential', async () => {
                 if (adoSecretMode === 'local') { await apiClient.replaceAzureDevOpsCredential(adoSecret); setAdoSecret(''); }
@@ -402,7 +470,7 @@ export function SetupWizardPage() {
           <SectionCard title={`${providerLabel(provider)} credential`} description="The API key is sent only to the backend and is never stored in browser persistence.">
             <CredentialStatus metadata={currentCredential} />
             <FormControl><FormLabel id="ai-secret-source">Credential source</FormLabel><RadioGroup row aria-labelledby="ai-secret-source" value={aiSecretMode} onChange={(event) => setAiSecretMode(event.target.value as 'local' | 'environment')}><FormControlLabel value="local" control={<Radio />} label="Local encrypted API key" /><FormControlLabel value="environment" control={<Radio />} label="Environment-variable reference" /></RadioGroup></FormControl>
-            {aiSecretMode === 'local' ? <TextField type="password" autoComplete="new-password" label={currentCredential.configured ? 'Replacement API key' : 'API key'} value={aiSecret} onChange={(event) => setAiSecret(event.target.value)} /> : <TextField label="Environment variable name" value={aiEnvironment} onChange={(event) => setAiEnvironment(event.target.value)} helperText="The backend environment must define this variable; its value is never returned." />}
+            {aiSecretMode === 'local' ? <TextField id="setup-ai.credential" type="password" autoComplete="new-password" label={currentCredential.configured ? 'Replacement API key' : 'API key'} value={aiSecret} onChange={(event) => { setAiSecret(event.target.value); clearValidation('ai.credential'); }} error={Boolean(error?.fieldErrors['ai.credential'])} helperText={error?.fieldErrors['ai.credential']?.[0]} /> : <TextField id="setup-ai.environmentVariableName" label="Environment variable name" value={aiEnvironment} onChange={(event) => { setAiEnvironment(event.target.value); clearValidation('ai.environmentVariableName'); }} error={Boolean(error?.fieldErrors['ai.environmentVariableName'])} helperText={error?.fieldErrors['ai.environmentVariableName']?.[0] ?? 'The backend environment must define this variable; its value is never returned.'} />}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <Button variant="contained" disabled={busy !== null || (aiSecretMode === 'local' ? !aiSecret : !aiEnvironment)} onClick={() => void action('ai-credential', async () => {
                 if (aiSecretMode === 'local') { await apiClient.replaceAiCredential(provider, aiSecret); setAiSecret(''); }
@@ -419,7 +487,7 @@ export function SetupWizardPage() {
               <Button onClick={() => { setManualModel((value) => !value); setModelCandidate(null); }}>{manualModel ? 'Choose discovered model' : 'Enter model ID manually'}</Button>
             </Stack>
             {!manualModel && models ? models.length ? <FormControl fullWidth><InputLabel id="model-select-label">Model</InputLabel><Select labelId="model-select-label" label="Model" value={modelId} onChange={(event) => { setModelId(event.target.value); setModelCandidate(null); }}>{models.map((model) => <MenuItem key={`${model.provider}:${model.id}`} value={model.id}>{model.displayName ? `${model.displayName} — ${model.id}` : model.id}</MenuItem>)}</Select></FormControl> : <Alert severity="info">Model discovery returned no choices. Use manual model entry.</Alert> : null}
-            {manualModel ? <TextField label="Model ID" value={modelId} onChange={(event) => { setModelId(event.target.value); setModelCandidate(null); }} helperText="The backend validates availability for the selected provider; manual entry does not bypass confirmation." /> : null}
+            {manualModel ? <TextField id="setup-ai.model" label="Model ID" value={modelId} onChange={(event) => { setModelId(event.target.value); setModelCandidate(null); clearValidation('ai.model'); }} error={Boolean(error?.fieldErrors['ai.model'])} helperText={error?.fieldErrors['ai.model']?.[0] ?? 'The backend validates availability for the selected provider; manual entry does not bypass confirmation.'} /> : null}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <Button variant="outlined" disabled={busy !== null || !modelId.trim() || currentCredential.verificationStatus !== 'verified'} onClick={() => void action('model-validate', async () => { const candidate = await apiClient.validateAiModel(provider, modelId.trim()); setModelCandidate(candidate); return `Model ${candidate.model} validated. Confirm it to continue.`; })}>{busy === 'model-validate' ? 'Validating…' : 'Validate model'}</Button>
               {modelCandidate ? <Button variant="contained" disabled={busy !== null || modelCandidate.provider !== provider} onClick={() => void action('model-confirm', async () => {
@@ -444,12 +512,12 @@ export function SetupWizardPage() {
 
       {activeStep === 3 ? <DefaultsStep defaults={data.defaults} draft={data.draft} initializing={busy === 'initialize-draft'} /> : null}
       {activeStep === 4 && draft ? (
-        <ProfileStep values={draft} criteria={criteria} processing={processing} content={content} attachments={attachments} busy={busy !== null} dirty={draftDirty} mutate={mutateDraft} save={() => void action('save-profile-only', async () => { await saveDraft(); return 'Profile and policy draft saved.'; })} />
+        <ProfileStep values={draft} criteria={criteria} processing={processing} content={content} attachments={attachments} busy={busy !== null} dirty={draftDirty} validation={error?.kind === 'validation' ? error : null} clearValidation={clearValidation} mutate={mutateDraft} save={() => void action('save-profile-only', async () => { await saveDraft(); return 'Profile and policy draft saved.'; })} />
       ) : null}
       {activeStep === 5 ? (
         <SectionCard title="Confirm the governed saved query" description="Enter an Azure DevOps saved-query URL or GUID. The backend resolves and runs it; arbitrary WIQL is not accepted.">
           <StatusLine label="Current query" ready={data.setup.azureDevOpsSavedQueryConfirmed} detail={data.adoSettings.savedQueryId ? `Saved query ${data.adoSettings.savedQueryId}` : 'No query confirmed'} />
-          <TextField required label="Saved-query URL or GUID" value={queryInput} onChange={(event) => { setQueryInput(event.target.value); setQueryCandidate(null); }} helperText="Use the saved query that defines the only work-item population this installation may inspect." />
+          <TextField id="setup-ado.savedQuery" required label="Saved-query URL or GUID" value={queryInput} onChange={(event) => { setQueryInput(event.target.value); setQueryCandidate(null); clearValidation('ado.savedQuery'); }} error={Boolean(error?.fieldErrors['ado.savedQuery'])} helperText={error?.fieldErrors['ado.savedQuery']?.[0] ?? 'Use the saved query that defines the only work-item population this installation may inspect.'} />
           <Button sx={{ alignSelf: 'flex-start' }} variant="outlined" disabled={busy !== null || !queryInput.trim()} onClick={() => void action('query-validate', async () => { const result = await apiClient.validateSavedQuery(adoOrganization, adoProject, queryInput.trim()); setQueryCandidate(result); return result.totalCount === 0 ? 'Query is valid. No work items currently match.' : `Query is valid and returned ${String(result.totalCount)} work items.`; })}>{busy === 'query-validate' ? 'Validating…' : 'Validate query'}</Button>
           {queryCandidate ? <QueryPreview candidate={queryCandidate} confirm={() => void action('query-confirm', async () => {
             try {
@@ -467,7 +535,7 @@ export function SetupWizardPage() {
           })} busy={busy === 'query-confirm'} /> : null}
         </SectionCard>
       ) : null}
-      {activeStep === 6 && draft ? <ScheduleStep values={draft} kind={scheduleChoice(draft)} mutate={mutateDraft} /> : null}
+      {activeStep === 6 && draft ? <ScheduleStep values={draft} kind={scheduleChoice(draft)} validation={error?.kind === 'validation' ? error : null} clearValidation={clearValidation} mutate={mutateDraft} /> : null}
       {activeStep === 7 ? <ReviewStep data={data} edit={goTo} finalize={() => void action('finalize', async () => {
         const latest = await refresh(true);
         if (latest.draft.revision == null) throw setupError('The onboarding draft is unavailable.');
@@ -532,61 +600,73 @@ interface ProfileStepProps {
   attachments: NonNullable<OnboardingDraftValues['processing']>['attachmentLimits'] | undefined;
   busy: boolean;
   dirty: boolean;
+  validation: ApiError | null;
+  clearValidation: (key: string) => void;
   mutate: (mutation: (values: OnboardingDraftValues) => void) => void;
   save: () => void;
 }
 
-function ProfileStep({ values, criteria, processing, content, attachments, busy, dirty, mutate, save }: ProfileStepProps) {
-  const setNumber = (target: (next: number | null) => void) => (event: React.ChangeEvent<HTMLInputElement>) => target(numeric(event.target.value));
+function ProfileStep({ values, criteria, processing, content, attachments, busy, dirty, validation, clearValidation, mutate, save }: ProfileStepProps) {
+  const setNumber = (target: (next: number | null) => void) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => target(numeric(event.target.value));
   const ensurePolicy = (draft: OnboardingDraftValues) => { draft.policy ??= { id: '', version: '', criteria: [] }; draft.policy.criteria ??= []; return draft.policy; };
   const ensureIntake = (draft: OnboardingDraftValues) => { draft.intakeState ??= { validatedTag: '', incompleteTag: '' }; return draft.intakeState; };
+  const message = (key: string) => validation?.fieldErrors[key]?.[0];
+  const invalid = (key: string) => Boolean(message(key));
+  const change = (key: string, mutation: (draft: OnboardingDraftValues) => void) => {
+    clearValidation(key);
+    mutate(mutation);
+  };
+  const evidenceInvalid = Object.keys(validation?.fieldErrors ?? {}).some((key) =>
+    key.startsWith('processing.contentLimits.') || key.startsWith('processing.attachmentLimits.'));
+  const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   return (
     <Stack spacing={2.5}>
-      <SectionCard title="Profile basics" description="Define the profile’s policy reference, intake tags, time zone, and initial discovery boundary.">
+      <SectionCard id="setup-profile" invalid={Object.keys(validation?.fieldErrors ?? {}).some((key) => ['policyUrl', 'intakeState.', 'schedule.'].some((prefix) => key.startsWith(prefix)))} title="Profile basics" description="Define the profile’s policy reference, intake tags, time zone, and initial discovery boundary.">
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth label="Profile version (optional)" value={values.profileVersion ?? ''} onChange={(event) => mutate((draft) => { draft.profileVersion = event.target.value || null; })} /></Grid>
-          <Grid size={{ xs: 12, sm: 8 }}><TextField fullWidth required type="url" label="Policy URL" value={values.policyUrl ?? ''} onChange={(event) => mutate((draft) => { draft.policyUrl = event.target.value || null; })} helperText="A durable HTTP or HTTPS reference for this policy." /></Grid>
-          <Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Engineering Ready tag" value={values.intakeState?.validatedTag ?? ''} onChange={(event) => mutate((draft) => { ensureIntake(draft).validatedTag = event.target.value || null; })} /></Grid>
-          <Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Intake Incomplete tag" value={values.intakeState?.incompleteTag ?? ''} onChange={(event) => mutate((draft) => { ensureIntake(draft).incompleteTag = event.target.value || null; })} /></Grid>
-          <Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Timezone" value={values.schedule?.timezone ?? ''} onChange={(event) => mutate((draft) => { if (draft.schedule) draft.schedule.timezone = event.target.value || null; })} helperText="Use a backend-supported TimeZoneInfo identifier, for example America/Toronto." /></Grid>
-          <Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Initial lookback" value={values.schedule?.initialLookback ?? ''} onChange={(event) => mutate((draft) => { if (draft.schedule) draft.schedule.initialLookback = event.target.value || null; })} helperText=".NET duration format, for example 7.00:00:00 for seven days." /></Grid>
+          <Grid size={{ xs: 12, sm: 8 }}><TextField id="setup-policyUrl" fullWidth required type="url" label="Policy URL" value={values.policyUrl ?? ''} onChange={(event) => change('policyUrl', (draft) => { draft.policyUrl = event.target.value || null; })} error={invalid('policyUrl')} helperText={message('policyUrl') ?? 'A durable HTTP or HTTPS reference for this policy.'} /></Grid>
+          <Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-intakeState.validatedTag" fullWidth required label="Engineering Ready tag" value={values.intakeState?.validatedTag ?? ''} onChange={(event) => change('intakeState.validatedTag', (draft) => { ensureIntake(draft).validatedTag = event.target.value || null; })} error={invalid('intakeState.validatedTag')} helperText={message('intakeState.validatedTag')} /></Grid>
+          <Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-intakeState.incompleteTag" fullWidth required label="Intake Incomplete tag" value={values.intakeState?.incompleteTag ?? ''} onChange={(event) => change('intakeState.incompleteTag', (draft) => { ensureIntake(draft).incompleteTag = event.target.value || null; })} error={invalid('intakeState.incompleteTag')} helperText={message('intakeState.incompleteTag')} /></Grid>
+          <Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-schedule.timezone" fullWidth required label="Timezone" value={values.schedule?.timezone ?? ''} onChange={(event) => change('schedule.timezone', (draft) => { if (draft.schedule) draft.schedule.timezone = event.target.value || null; })} error={invalid('schedule.timezone')} helperText={message('schedule.timezone') ?? 'Use a backend-supported TimeZoneInfo identifier, for example America/Toronto.'} /></Grid>
+          <Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-schedule.initialLookback" fullWidth required label="Initial lookback" value={values.schedule?.initialLookback ?? ''} onChange={(event) => change('schedule.initialLookback', (draft) => { if (draft.schedule) draft.schedule.initialLookback = event.target.value || null; })} error={invalid('schedule.initialLookback')} helperText={message('schedule.initialLookback') ?? '.NET duration format, for example 7.00:00:00 for seven days.'} /></Grid>
         </Grid>
       </SectionCard>
-      <SectionCard title="Intake policy" description="A criterion describes evidence needed for Engineering to begin investigation. Keep each item bounded and specific.">
-        <Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Policy ID" value={values.policy?.id ?? ''} onChange={(event) => mutate((draft) => { ensurePolicy(draft).id = event.target.value || null; })} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Policy version" value={values.policy?.version ?? ''} onChange={(event) => mutate((draft) => { ensurePolicy(draft).version = event.target.value || null; })} /></Grid></Grid>
+      <SectionCard id="setup-policy.criteria" invalid={Boolean(validation?.sectionErrors['policy.criteria']) || Object.keys(validation?.fieldErrors ?? {}).some((key) => key.startsWith('policy.'))} title="Intake policy" description="A criterion describes evidence needed for Engineering to begin investigation. Keep each item bounded and specific.">
+        <Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-policy.id" fullWidth required label="Policy ID" value={values.policy?.id ?? ''} onChange={(event) => change('policy.id', (draft) => { ensurePolicy(draft).id = event.target.value || null; })} error={invalid('policy.id')} helperText={message('policy.id')} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-policy.version" fullWidth required label="Policy version" value={values.policy?.version ?? ''} onChange={(event) => change('policy.version', (draft) => { ensurePolicy(draft).version = event.target.value || null; })} error={invalid('policy.version')} helperText={message('policy.version')} /></Grid></Grid>
+        {validation?.sectionErrors['policy.criteria']?.[0] ? <FormHelperText error role="alert">{validation.sectionErrors['policy.criteria'][0]}</FormHelperText> : null}
         {criteria.map((criterion, index) => (
           <Paper component="fieldset" variant="outlined" key={index} sx={{ p: 2, m: 0 }}>
             <Stack spacing={2}><Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}><Typography component="legend" variant="h3">Criterion {index + 1}</Typography><Button color="error" startIcon={<DeleteOutlineRounded />} aria-label={`Remove criterion ${index + 1}`} onClick={() => mutate((draft) => { ensurePolicy(draft).criteria?.splice(index, 1); })}>Remove</Button></Stack>
               <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 5 }}><TextField fullWidth required label="Criterion ID" value={criterion.id ?? ''} onChange={(event) => mutate((draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.id = event.target.value || null; })} /></Grid>
-                <Grid size={{ xs: 12, sm: 7 }}><TextField fullWidth required label="Display name" value={criterion.displayName ?? ''} onChange={(event) => mutate((draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.displayName = event.target.value || null; })} /></Grid>
-                <Grid size={12}><TextField fullWidth required multiline minRows={2} label="Description" value={criterion.description ?? ''} onChange={(event) => mutate((draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.description = event.target.value || null; })} /></Grid>
-                <Grid size={12}><TextField fullWidth required multiline minRows={2} label="Evaluation guidance" value={criterion.evaluationGuidance ?? ''} onChange={(event) => mutate((draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.evaluationGuidance = event.target.value || null; })} /></Grid>
+                <Grid size={{ xs: 12, sm: 5 }}><TextField id={`setup-policy.criteria[${index}].id`} fullWidth required label="Criterion ID" value={criterion.id ?? ''} onChange={(event) => change(`policy.criteria[${index}].id`, (draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.id = event.target.value || null; })} error={invalid(`policy.criteria[${index}].id`)} helperText={message(`policy.criteria[${index}].id`)} /></Grid>
+                <Grid size={{ xs: 12, sm: 7 }}><TextField id={`setup-policy.criteria[${index}].displayName`} fullWidth required label="Display name" value={criterion.displayName ?? ''} onChange={(event) => change(`policy.criteria[${index}].displayName`, (draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.displayName = event.target.value || null; })} error={invalid(`policy.criteria[${index}].displayName`)} helperText={message(`policy.criteria[${index}].displayName`)} /></Grid>
+                <Grid size={12}><TextField id={`setup-policy.criteria[${index}].description`} fullWidth required multiline minRows={2} label="Description" value={criterion.description ?? ''} onChange={(event) => change(`policy.criteria[${index}].description`, (draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.description = event.target.value || null; })} error={invalid(`policy.criteria[${index}].description`)} helperText={message(`policy.criteria[${index}].description`)} /></Grid>
+                <Grid size={12}><TextField id={`setup-policy.criteria[${index}].evaluationGuidance`} fullWidth required multiline minRows={2} label="Evaluation guidance" value={criterion.evaluationGuidance ?? ''} onChange={(event) => change(`policy.criteria[${index}].evaluationGuidance`, (draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.evaluationGuidance = event.target.value || null; })} error={invalid(`policy.criteria[${index}].evaluationGuidance`)} helperText={message(`policy.criteria[${index}].evaluationGuidance`)} /></Grid>
                 <Grid size={{ xs: 12, sm: 5 }}><FormControl fullWidth required><InputLabel id={`applicability-${index}`}>Applicability</InputLabel><Select labelId={`applicability-${index}`} label="Applicability" value={criterion.applicability ?? 'required'} onChange={(event) => mutate((draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) item.applicability = event.target.value; })}><MenuItem value="required">Required</MenuItem><MenuItem value="contextual">Contextual</MenuItem></Select></FormControl></Grid>
                 <Grid size={{ xs: 12, sm: 7 }}><FormControlLabel control={<Checkbox checked={criterion.na?.allowed ?? false} onChange={(event) => mutate((draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) { item.na ??= { allowed: false, requiresExplanation: false }; item.na.allowed = event.target.checked; if (!event.target.checked) item.na.requiresExplanation = false; } })} />} label="Not applicable is allowed" /><FormControlLabel control={<Checkbox checked={criterion.na?.requiresExplanation ?? false} disabled={!criterion.na?.allowed} onChange={(event) => mutate((draft) => { const item = ensurePolicy(draft).criteria?.[index]; if (item) { item.na ??= { allowed: true, requiresExplanation: false }; item.na.requiresExplanation = event.target.checked; } })} />} label="Require an N/A explanation" /></Grid>
               </Grid>
             </Stack>
           </Paper>
         ))}
-        <Button startIcon={<AddRounded />} variant="outlined" sx={{ alignSelf: 'flex-start' }} onClick={() => mutate((draft) => { ensurePolicy(draft).criteria?.push({ id: '', displayName: '', description: '', applicability: 'required', na: { allowed: false, requiresExplanation: false }, evaluationGuidance: '' }); })}>Add criterion</Button>
+        <Button id="setup-policy.criteria-action" startIcon={<AddRounded />} variant="outlined" sx={{ alignSelf: 'flex-start' }} onClick={() => { clearValidation('policy.criteria'); mutate((draft) => { ensurePolicy(draft).criteria?.push({ id: '', displayName: '', description: '', applicability: 'required', na: { allowed: false, requiresExplanation: false }, evaluationGuidance: '' }); }); }}>Add criterion</Button>
       </SectionCard>
       <SectionCard title="Processing" description="The backend validates concurrency, retry, content, and attachment bounds. Execution remains Controlled Dry Run.">
         <Alert severity="info">Execution mode: <strong>Controlled Dry Run</strong>. This wizard cannot enable Production.</Alert>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required type="number" slotProps={{ htmlInput: { min: 1 } }} label="Concurrency" value={valueOf(processing?.concurrency)} onChange={setNumber((next) => mutate((draft) => { if (draft.processing) draft.processing.concurrency = next; }))} /></Grid>
-          <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required type="number" slotProps={{ htmlInput: { min: 0 } }} label="Retries" value={valueOf(processing?.retries)} onChange={setNumber((next) => mutate((draft) => { if (draft.processing) draft.processing.retries = next; }))} /></Grid>
-          <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required type="number" slotProps={{ htmlInput: { min: 1 } }} label="AI timeout (seconds)" value={valueOf(values.aiRuntime?.timeoutSeconds)} onChange={setNumber((next) => mutate((draft) => { if (draft.aiRuntime) draft.aiRuntime.timeoutSeconds = next; }))} /></Grid>
+          <Grid size={{ xs: 12, sm: 4 }}><TextField id="setup-processing.concurrency" fullWidth required type="number" slotProps={{ htmlInput: { min: 1 } }} label="Concurrency" value={valueOf(processing?.concurrency)} onChange={(event) => { clearValidation('processing.concurrency'); setNumber((next) => mutate((draft) => { if (draft.processing) draft.processing.concurrency = next; }))(event); }} error={invalid('processing.concurrency')} helperText={message('processing.concurrency')} /></Grid>
+          <Grid size={{ xs: 12, sm: 4 }}><TextField id="setup-processing.retries" fullWidth required type="number" slotProps={{ htmlInput: { min: 0 } }} label="Retries" value={valueOf(processing?.retries)} onChange={(event) => { clearValidation('processing.retries'); setNumber((next) => mutate((draft) => { if (draft.processing) draft.processing.retries = next; }))(event); }} error={invalid('processing.retries')} helperText={message('processing.retries')} /></Grid>
+          <Grid size={{ xs: 12, sm: 4 }}><TextField id="setup-aiRuntime.timeoutSeconds" fullWidth required type="number" slotProps={{ htmlInput: { min: 1 } }} label="AI timeout (seconds)" value={valueOf(values.aiRuntime?.timeoutSeconds)} onChange={(event) => { clearValidation('aiRuntime.timeoutSeconds'); setNumber((next) => mutate((draft) => { if (draft.aiRuntime) draft.aiRuntime.timeoutSeconds = next; }))(event); }} error={invalid('aiRuntime.timeoutSeconds')} helperText={message('aiRuntime.timeoutSeconds')} /></Grid>
         </Grid>
       </SectionCard>
-      <Accordion><AccordionSummary expandIcon={<ArrowForwardRounded sx={{ transform: 'rotate(90deg)' }} />}><Box><Typography variant="h3">Evidence limits</Typography><Typography variant="body2" color="text.secondary">Required bounded content and attachment processing values</Typography></Box></AccordionSummary><AccordionDetails><Grid container spacing={2}>
+      <Accordion id="setup-evidence-limits" expanded={evidenceExpanded || evidenceInvalid} onChange={(_, expanded) => setEvidenceExpanded(expanded)} sx={evidenceInvalid ? { outline: '2px solid', outlineColor: 'error.main' } : undefined}><AccordionSummary expandIcon={<ArrowForwardRounded sx={{ transform: 'rotate(90deg)' }} />}><Box><Typography variant="h3">Evidence limits</Typography><Typography variant="body2" color="text.secondary">Required bounded content and attachment processing values{evidenceInvalid ? ' — contains validation errors' : ''}</Typography></Box></AccordionSummary><AccordionDetails><Grid container spacing={2}>
         {[
           ['Maximum total characters', 'maximumTotalCharacters', content?.maximumTotalCharacters], ['Maximum comments', 'maximumComments', content?.maximumComments], ['Maximum extracted text characters', 'maximumExtractedTextCharacters', content?.maximumExtractedTextCharacters],
-        ].map(([label, key, value]) => <Grid key={String(key)} size={{ xs: 12, sm: 4 }}><TextField fullWidth required type="number" label={String(label)} value={valueOf(value)} onChange={setNumber((next) => mutate((draft) => { const limits = draft.processing?.contentLimits; if (limits) (limits as Record<string, unknown>)[String(key)] = next; }))} /></Grid>)}
+        ].map(([label, key, value]) => { const fieldKey = `processing.contentLimits.${String(key)}`; return <Grid key={String(key)} size={{ xs: 12, sm: 4 }}><TextField id={`setup-${fieldKey}`} fullWidth required type="number" label={String(label)} value={valueOf(value)} onChange={(event) => { clearValidation(fieldKey); setNumber((next) => mutate((draft) => { const limits = draft.processing?.contentLimits; if (limits) (limits as Record<string, unknown>)[String(key)] = next; }))(event); }} error={invalid(fieldKey)} helperText={message(fieldKey)} /></Grid>; })}
         {[
           ['Maximum attachments', 'maximumCount', attachments?.maximumCount], ['Bytes per attachment', 'maximumBytesPerAttachment', attachments?.maximumBytesPerAttachment], ['Aggregate attachment bytes', 'maximumAggregateBytes', attachments?.maximumAggregateBytes], ['Maximum PDF pages', 'maximumPdfPages', attachments?.maximumPdfPages], ['Maximum images', 'maximumImageCount', attachments?.maximumImageCount], ['Maximum image bytes', 'maximumImageBytes', attachments?.maximumImageBytes], ['Maximum CSV rows', 'maximumCsvRows', attachments?.maximumCsvRows], ['Structured text depth', 'maximumStructuredTextDepth', attachments?.maximumStructuredTextDepth],
-        ].map(([label, key, value]) => <Grid key={String(key)} size={{ xs: 12, sm: 4 }}><TextField fullWidth required type="number" label={String(label)} value={valueOf(value)} onChange={setNumber((next) => mutate((draft) => { const limits = draft.processing?.attachmentLimits; if (limits) (limits as Record<string, unknown>)[String(key)] = next; }))} /></Grid>)}
+        ].map(([label, key, value]) => { const fieldKey = `processing.attachmentLimits.${String(key)}`; return <Grid key={String(key)} size={{ xs: 12, sm: 4 }}><TextField id={`setup-${fieldKey}`} fullWidth required type="number" label={String(label)} value={valueOf(value)} onChange={(event) => { clearValidation(fieldKey); setNumber((next) => mutate((draft) => { const limits = draft.processing?.attachmentLimits; if (limits) (limits as Record<string, unknown>)[String(key)] = next; }))(event); }} error={invalid(fieldKey)} helperText={message(fieldKey)} /></Grid>; })}
       </Grid></AccordionDetails></Accordion>
-      <SectionCard title="Audit retention"><TextField sx={{ maxWidth: 320 }} required type="number" label="Retention days" value={valueOf(values.audit?.retentionDays)} onChange={setNumber((next) => mutate((draft) => { if (draft.audit) draft.audit.retentionDays = next; }))} /></SectionCard>
+      <SectionCard title="Audit retention"><TextField id="setup-audit.retentionDays" sx={{ maxWidth: 320 }} required type="number" label="Retention days" value={valueOf(values.audit?.retentionDays)} onChange={(event) => { clearValidation('audit.retentionDays'); setNumber((next) => mutate((draft) => { if (draft.audit) draft.audit.retentionDays = next; }))(event); }} error={invalid('audit.retentionDays')} helperText={message('audit.retentionDays')} /></SectionCard>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><Button startIcon={<SaveOutlined />} variant="outlined" disabled={busy || !dirty} onClick={save}>Save draft</Button><Typography variant="body2" color="text.secondary">{dirty ? 'Unsaved changes' : 'All profile changes saved'}</Typography></Stack>
     </Stack>
   );
@@ -602,7 +682,7 @@ function QueryPreview({ candidate, confirm, busy }: { candidate: AzureDevOpsQuer
   );
 }
 
-function ScheduleStep({ values, kind, mutate }: { values: OnboardingDraftValues; kind: ScheduleChoice; mutate: (mutation: (values: OnboardingDraftValues) => void) => void }) {
+function ScheduleStep({ values, kind, validation, clearValidation, mutate }: { values: OnboardingDraftValues; kind: ScheduleChoice; validation: ApiError | null; clearValidation: (key: string) => void; mutate: (mutation: (values: OnboardingDraftValues) => void) => void }) {
   const choose = (choice: ScheduleChoice) => {
     if (choice === 'custom') { mutate((draft) => { if (draft.schedule) { draft.schedule.enabled = true; draft.schedule.expression = ''; } }); return; }
     mutate((draft) => { if (draft.schedule) { draft.schedule.enabled = schedulePresets[choice].enabled; draft.schedule.expression = schedulePresets[choice].expression; } });
@@ -610,8 +690,8 @@ function ScheduleStep({ values, kind, mutate }: { values: OnboardingDraftValues;
   return (
     <SectionCard title="Optional schedule" description="Choose when the existing backend scheduler should run. The backend validates Cronos and TimeZoneInfo semantics.">
       <FormControl fullWidth><InputLabel id="schedule-choice-label">Frequency</InputLabel><Select labelId="schedule-choice-label" label="Frequency" value={kind} onChange={(event) => choose(event.target.value)}><MenuItem value="manual">Manual only</MenuItem><MenuItem value="hourly">Hourly</MenuItem><MenuItem value="daily">Daily</MenuItem><MenuItem value="weekly">Weekly</MenuItem><MenuItem value="custom">Custom</MenuItem></Select><FormHelperText>Manual Only creates no automatic schedule.</FormHelperText></FormControl>
-      {kind === 'custom' ? <TextField required label="Six-field cron expression" value={values.schedule?.expression ?? ''} onChange={(event) => mutate((draft) => { if (draft.schedule) draft.schedule.expression = event.target.value || null; })} helperText="Validated by the backend; this browser does not calculate run times." /> : null}
-      <Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Timezone" value={values.schedule?.timezone ?? ''} onChange={(event) => mutate((draft) => { if (draft.schedule) draft.schedule.timezone = event.target.value || null; })} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField fullWidth required label="Initial lookback" value={values.schedule?.initialLookback ?? ''} onChange={(event) => mutate((draft) => { if (draft.schedule) draft.schedule.initialLookback = event.target.value || null; })} /></Grid></Grid>
+      {kind === 'custom' ? <TextField id="setup-schedule.expression" required label="Six-field cron expression" value={values.schedule?.expression ?? ''} onChange={(event) => { clearValidation('schedule.expression'); mutate((draft) => { if (draft.schedule) draft.schedule.expression = event.target.value || null; }); }} error={Boolean(validation?.fieldErrors['schedule.expression'])} helperText={validation?.fieldErrors['schedule.expression']?.[0] ?? 'Validated by the backend; this browser does not calculate run times.'} /> : null}
+      <Grid container spacing={2}><Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-schedule.timezone" fullWidth required label="Timezone" value={values.schedule?.timezone ?? ''} onChange={(event) => { clearValidation('schedule.timezone'); mutate((draft) => { if (draft.schedule) draft.schedule.timezone = event.target.value || null; }); }} error={Boolean(validation?.fieldErrors['schedule.timezone'])} helperText={validation?.fieldErrors['schedule.timezone']?.[0]} /></Grid><Grid size={{ xs: 12, sm: 6 }}><TextField id="setup-schedule.initialLookback" fullWidth required label="Initial lookback" value={values.schedule?.initialLookback ?? ''} onChange={(event) => { clearValidation('schedule.initialLookback'); mutate((draft) => { if (draft.schedule) draft.schedule.initialLookback = event.target.value || null; }); }} error={Boolean(validation?.fieldErrors['schedule.initialLookback'])} helperText={validation?.fieldErrors['schedule.initialLookback']?.[0]} /></Grid></Grid>
       <Alert severity="info">{kind === 'manual' ? 'Manual Only: no automatic executions will be scheduled.' : `Schedule expression: ${values.schedule?.expression ?? ''}. The backend applies it in ${values.schedule?.timezone ?? 'the configured timezone'}.`}</Alert>
     </SectionCard>
   );

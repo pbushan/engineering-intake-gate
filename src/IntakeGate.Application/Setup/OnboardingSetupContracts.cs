@@ -60,7 +60,15 @@ public enum OnboardingDraftPersistenceStatus
 
 public sealed record OnboardingDraftPersistenceResult(
     OnboardingDraftPersistenceStatus Status,
-    OnboardingProfileDraft? Draft = null);
+    OnboardingProfileDraft? Draft = null,
+    InputValidationErrors? ValidationErrors = null);
+
+public sealed record InputValidationErrors(
+    IReadOnlyDictionary<string, IReadOnlyList<string>> FieldErrors,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> SectionErrors)
+{
+    public bool IsEmpty => FieldErrors.Count == 0 && SectionErrors.Count == 0;
+}
 
 public interface IOnboardingProfileDraftRepository
 {
@@ -99,7 +107,8 @@ public enum SetupFinalizationStatus
 public sealed record SetupFinalizationResult(
     SetupFinalizationStatus Status,
     ProfileConfigurationSnapshot? Snapshot = null,
-    RuntimeConfigurationGeneration? Generation = null);
+    RuntimeConfigurationGeneration? Generation = null,
+    InputValidationErrors? ValidationErrors = null);
 
 public static class AuthoritativeOnboardingDefaults
 {
@@ -194,7 +203,8 @@ public sealed class OnboardingSetupService(
         CancellationToken cancellationToken = default)
     {
         if (expectedRevision <= 0 || !IsSupportedDraft(values))
-            return new(OnboardingDraftPersistenceStatus.InvalidConfiguration);
+            return new(OnboardingDraftPersistenceStatus.InvalidConfiguration,
+                ValidationErrors: ValidateDraft(values));
         return await drafts.UpdateAsync(expectedRevision, Normalize(values), actor,
             clock.UtcNow.ToUniversalTime(), cancellationToken);
     }
@@ -208,7 +218,8 @@ public sealed class OnboardingSetupService(
         if (draft is null) return new(SetupFinalizationStatus.DraftNotFound);
         if (draft.Revision != expectedDraftRevision) return new(SetupFinalizationStatus.Conflict);
         if (!TryBuildEditable(draft.Values, out var editable))
-            return new(SetupFinalizationStatus.InvalidConfiguration);
+            return new(SetupFinalizationStatus.InvalidConfiguration,
+                ValidationErrors: ValidateDraft(draft.Values));
 
         var ado = await azureDevOps.GetAsync(cancellationToken);
         var aiState = await ai.GetAsync(cancellationToken);
@@ -293,6 +304,145 @@ public sealed class OnboardingSetupService(
     public bool IsDraftComplete(OnboardingProfileDraft? draft) =>
         IsProfileDetailsComplete(draft) && IsPolicyDetailsComplete(draft) &&
         TryBuildEditable(draft!.Values, out _);
+
+    public InputValidationErrors ValidateDraft(OnboardingProfileDraftValues values)
+    {
+        var fields = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        var sections = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+        static void Add(IDictionary<string, IReadOnlyList<string>> target, string key, string message) =>
+            target[key] = target.TryGetValue(key, out var existing) ? [.. existing, message] : [message];
+        static bool Missing(string? value) => string.IsNullOrWhiteSpace(value);
+        static void Required(IDictionary<string, IReadOnlyList<string>> target, string key, string? value, string label)
+        {
+            if (Missing(value)) Add(target, key, $"{label} is required.");
+        }
+        static void Positive(IDictionary<string, IReadOnlyList<string>> target, string key, long? value, string label)
+        {
+            if (value is null) Add(target, key, $"{label} is required.");
+            else if (value <= 0) Add(target, key, $"{label} must be greater than zero.");
+        }
+
+        Required(fields, "policyUrl", values.PolicyUrl, "Policy URL");
+        if (!Missing(values.PolicyUrl) &&
+            (!Uri.TryCreate(values.PolicyUrl, UriKind.Absolute, out var policyUrl) ||
+             policyUrl.Scheme is not ("http" or "https")))
+            Add(fields, "policyUrl", "Enter an absolute HTTP or HTTPS policy URL.");
+        Required(fields, "intakeState.validatedTag", values.IntakeState?.ValidatedTag, "Engineering Ready tag");
+        Required(fields, "intakeState.incompleteTag", values.IntakeState?.IncompleteTag, "Intake Incomplete tag");
+        if (!Missing(values.IntakeState?.ValidatedTag) &&
+            string.Equals(values.IntakeState!.ValidatedTag!.Trim(), values.IntakeState.IncompleteTag?.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Add(fields, "intakeState.validatedTag", "Use different values for the two intake tags.");
+            Add(fields, "intakeState.incompleteTag", "Use different values for the two intake tags.");
+        }
+
+        Required(fields, "schedule.timezone", values.Schedule?.Timezone, "Timezone");
+        if (!Missing(values.Schedule?.Timezone))
+        {
+            try
+            {
+                _ = TimeZoneInfo.FindSystemTimeZoneById(values.Schedule!.Timezone!.Trim());
+                var schedule = new ScheduleConfiguration(values.Schedule.Enabled,
+                    values.Schedule.Expression?.Trim() ?? string.Empty, values.Schedule.Timezone.Trim(),
+                    TimeSpan.FromTicks(1));
+                if (values.Schedule.Enabled && !Missing(values.Schedule.Expression) &&
+                    !scheduleValidator.IsValid(schedule))
+                    Add(fields, "schedule.expression",
+                        "Enter a valid six-field cron expression for the selected timezone.");
+            }
+            catch (Exception exception) when (exception is TimeZoneNotFoundException or InvalidTimeZoneException)
+            {
+                Add(fields, "schedule.timezone", "Select a backend-supported timezone.");
+            }
+        }
+        if (values.Schedule?.Enabled == true)
+            Required(fields, "schedule.expression", values.Schedule.Expression, "Schedule expression");
+        Required(fields, "schedule.initialLookback", values.Schedule?.InitialLookback, "Initial lookback");
+        if (!Missing(values.Schedule?.InitialLookback) &&
+            (!TimeSpan.TryParseExact(values.Schedule!.InitialLookback, "c",
+                System.Globalization.CultureInfo.InvariantCulture, out var lookback) || lookback <= TimeSpan.Zero))
+            Add(fields, "schedule.initialLookback", "Enter a positive .NET duration, for example 7.00:00:00.");
+
+        Positive(fields, "processing.concurrency", values.Processing?.Concurrency, "Concurrency");
+        if (values.Processing?.Retries is null) Add(fields, "processing.retries", "Retries is required.");
+        else if (values.Processing.Retries < 0) Add(fields, "processing.retries", "Retries must be zero or greater.");
+        Positive(fields, "processing.contentLimits.maximumTotalCharacters",
+            values.Processing?.ContentLimits?.MaximumTotalCharacters, "Maximum total characters");
+        Positive(fields, "processing.contentLimits.maximumComments",
+            values.Processing?.ContentLimits?.MaximumComments, "Maximum comments");
+        Positive(fields, "processing.contentLimits.maximumExtractedTextCharacters",
+            values.Processing?.ContentLimits?.MaximumExtractedTextCharacters, "Maximum extracted text characters");
+        Positive(fields, "processing.attachmentLimits.maximumCount",
+            values.Processing?.AttachmentLimits?.MaximumCount, "Maximum attachments");
+        Positive(fields, "processing.attachmentLimits.maximumBytesPerAttachment",
+            values.Processing?.AttachmentLimits?.MaximumBytesPerAttachment, "Bytes per attachment");
+        if (values.Processing?.AttachmentLimits?.MaximumBytesPerAttachment > int.MaxValue)
+            Add(fields, "processing.attachmentLimits.maximumBytesPerAttachment",
+                $"Bytes per attachment must be no greater than {int.MaxValue}.");
+        Positive(fields, "processing.attachmentLimits.maximumAggregateBytes",
+            values.Processing?.AttachmentLimits?.MaximumAggregateBytes, "Aggregate attachment bytes");
+        Positive(fields, "processing.attachmentLimits.maximumPdfPages",
+            values.Processing?.AttachmentLimits?.MaximumPdfPages, "Maximum PDF pages");
+        Positive(fields, "processing.attachmentLimits.maximumImageCount",
+            values.Processing?.AttachmentLimits?.MaximumImageCount, "Maximum images");
+        Positive(fields, "processing.attachmentLimits.maximumImageBytes",
+            values.Processing?.AttachmentLimits?.MaximumImageBytes, "Maximum image bytes");
+        if (values.Processing?.AttachmentLimits?.MaximumImageBytes > int.MaxValue)
+            Add(fields, "processing.attachmentLimits.maximumImageBytes",
+                $"Maximum image bytes must be no greater than {int.MaxValue}.");
+        Positive(fields, "processing.attachmentLimits.maximumCsvRows",
+            values.Processing?.AttachmentLimits?.MaximumCsvRows, "Maximum CSV rows");
+        Positive(fields, "processing.attachmentLimits.maximumStructuredTextDepth",
+            values.Processing?.AttachmentLimits?.MaximumStructuredTextDepth, "Structured text depth");
+        Positive(fields, "aiRuntime.timeoutSeconds", values.AiRuntime?.TimeoutSeconds, "AI timeout");
+        Positive(fields, "audit.retentionDays", values.Audit?.RetentionDays, "Retention days");
+
+        Required(fields, "policy.id", values.Policy?.Id, "Policy ID");
+        Required(fields, "policy.version", values.Policy?.Version, "Policy version");
+        if (values.Policy?.Criteria is not { Count: > 0 })
+            Add(sections, "policy.criteria", "Add at least one intake criterion.");
+        else
+        {
+            for (var index = 0; index < values.Policy.Criteria.Count; index++)
+            {
+                var criterion = values.Policy.Criteria[index];
+                var prefix = $"policy.criteria[{index}]";
+                Required(fields, $"{prefix}.id", criterion.Id, $"Criterion {index + 1} ID");
+                Required(fields, $"{prefix}.displayName", criterion.DisplayName, $"Criterion {index + 1} display name");
+                Required(fields, $"{prefix}.description", criterion.Description, $"Criterion {index + 1} description");
+                Required(fields, $"{prefix}.evaluationGuidance", criterion.EvaluationGuidance,
+                    $"Criterion {index + 1} evaluation guidance");
+                if (criterion.Applicability?.Trim().ToLowerInvariant() is not ("required" or "contextual"))
+                    Add(fields, $"{prefix}.applicability", "Select Required or Contextual.");
+                if (criterion.Na?.Allowed is null || criterion.Na.RequiresExplanation is null)
+                    Add(fields, $"{prefix}.na", "Choose valid not-applicable settings.");
+                else if (!criterion.Na.Allowed.Value && criterion.Na.RequiresExplanation.Value)
+                    Add(fields, $"{prefix}.na", "An explanation cannot be required when N/A is not allowed.");
+            }
+            foreach (var duplicate in values.Policy.Criteria
+                         .Select((item, index) => (item.Id, index))
+                         .Where(item => !Missing(item.Id))
+                         .GroupBy(item => item.Id!.Trim(), StringComparer.OrdinalIgnoreCase)
+                         .Where(group => group.Count() > 1))
+                foreach (var item in duplicate)
+                    Add(fields, $"policy.criteria[{item.index}].id", "Criterion IDs must be unique.");
+        }
+
+        if (values.AiRuntime?.Pricing is null || values.AiRuntime.Pricing.Any(item =>
+                Missing(item.Provider) || Missing(item.Model) || Missing(item.Currency) ||
+                item.InputPerMillionTokens < 0 || item.OutputPerMillionTokens < 0) ||
+            values.AiRuntime?.Pricing?.GroupBy(item => $"{item.Provider}\0{item.Model}",
+                StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1) == true)
+            Add(sections, "aiRuntime.pricing", "Review the model-pricing entries.");
+        if (values.Exclusions is null || values.Exclusions.Any(item => Missing(item.Id) || Missing(item.Field) ||
+                !string.Equals(item.Operator, "equalsAny", StringComparison.OrdinalIgnoreCase) ||
+                item.Values is null || item.Values.Count == 0 || item.Values.Any(Missing)))
+            Add(sections, "exclusions", "Review the exclusion rules and provide a field and at least one value.");
+
+        return new InputValidationErrors(fields, sections);
+    }
 
     public bool IsProfileDetailsComplete(OnboardingProfileDraft? draft) =>
         draft is not null && IsSupportedDraft(draft.Values) && ProfileFieldsPresent(draft.Values);

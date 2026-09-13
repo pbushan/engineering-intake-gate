@@ -119,6 +119,16 @@ draft_revision=$(echo "$draft" | sed -n 's/.*"revision":\([0-9][0-9]*\).*/\1/p')
 [ -n "$draft_revision" ] || { echo "Onboarding draft initialization did not return a revision." >&2; exit 1; }
 
 record_progress Profile
+incomplete_update=$(auth_curl --fail --silent --show-error --request PUT --header 'Content-Type: application/json' \
+    --data "{\"expectedRevision\":$draft_revision,\"values\":{\"profileVersion\":null,\"policyUrl\":null,\"intakeState\":null,\"aiRuntime\":{\"timeoutSeconds\":60,\"pricing\":[]},\"schedule\":{\"enabled\":false,\"expression\":\"\",\"timezone\":null,\"initialLookback\":null},\"processing\":{\"executionMode\":\"DRY_RUN\",\"concurrency\":null,\"retries\":null,\"contentLimits\":{\"maximumTotalCharacters\":null,\"maximumComments\":null,\"maximumExtractedTextCharacters\":null},\"attachmentLimits\":{\"maximumCount\":null,\"maximumBytesPerAttachment\":null,\"maximumAggregateBytes\":null,\"maximumPdfPages\":null,\"maximumImageCount\":10,\"maximumImageBytes\":5242880,\"maximumCsvRows\":1000,\"maximumStructuredTextDepth\":32}},\"audit\":{\"retentionDays\":null},\"exclusions\":[],\"policy\":null}}" \
+    http://127.0.0.1:8080/api/setup/profile-draft)
+echo "$incomplete_update" | grep '"policyUrl":\["Policy URL is required."\]' >/dev/null
+echo "$incomplete_update" | grep '"schedule.timezone":\["Timezone is required."\]' >/dev/null
+echo "$incomplete_update" | grep '"policy.criteria":\["Add at least one intake criterion."\]' >/dev/null
+echo "$incomplete_update" | grep '"policyUrl":null' >/dev/null
+draft_revision=$(echo "$incomplete_update" | sed -n 's/.*"revision":\([0-9][0-9]*\).*/\1/p')
+[ -n "$draft_revision" ] || { echo "Incomplete onboarding draft did not remain safely persisted." >&2; exit 1; }
+
 draft_update=$(auth_curl --fail --silent --show-error --request PUT --header 'Content-Type: application/json' \
     --data "{\"expectedRevision\":$draft_revision,\"values\":{\"profileVersion\":\"1.0\",\"policyUrl\":\"https://example.invalid/engineering/intake-standard\",\"intakeState\":{\"validatedTag\":\"INTAKE-VALIDATED\",\"incompleteTag\":\"INTAKE-INCOMPLETE\"},\"aiRuntime\":{\"timeoutSeconds\":60,\"pricing\":[]},\"schedule\":{\"enabled\":false,\"expression\":\"\",\"timezone\":\"UTC\",\"initialLookback\":\"1.00:00:00\"},\"processing\":{\"executionMode\":\"DRY_RUN\",\"concurrency\":2,\"retries\":2,\"contentLimits\":{\"maximumTotalCharacters\":100000,\"maximumComments\":100,\"maximumExtractedTextCharacters\":75000},\"attachmentLimits\":{\"maximumCount\":20,\"maximumBytesPerAttachment\":10485760,\"maximumAggregateBytes\":52428800,\"maximumPdfPages\":200,\"maximumImageCount\":10,\"maximumImageBytes\":5242880,\"maximumCsvRows\":1000,\"maximumStructuredTextDepth\":32}},\"audit\":{\"retentionDays\":90},\"exclusions\":[],\"policy\":{\"id\":\"product-onboarding-intake\",\"version\":\"1.0\",\"criteria\":[{\"id\":\"investigation-context\",\"displayName\":\"Investigation context\",\"description\":\"Relevant evidence and context needed for Engineering to begin investigation.\",\"applicability\":\"required\",\"na\":{\"allowed\":false,\"requiresExplanation\":false},\"evaluationGuidance\":\"Assess only whether enough relevant context is present to begin investigation without avoidable clarification.\"}]}}}" \
     http://127.0.0.1:8080/api/setup/profile-draft)

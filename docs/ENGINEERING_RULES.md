@@ -34,6 +34,7 @@ These rules apply to all implementation phases.
 
 - Use UTC timestamps for persisted/audited time. Convert to local time only at presentation boundaries.
 - Handle errors explicitly at boundaries; preserve safe actionable context while preventing secret/data leakage. Retries must be bounded, deterministic in policy, and safe for idempotent operations.
+- User-correctable failures must identify the corrective action whenever the backend can safely determine it. Use stable field/section identifiers, preserve entered values, and keep non-validation failures semantically distinct.
 - Emit structured logs with stable event names and safe correlation identifiers. Log decision/mutation outcomes and failure reasons, not credentials or unredacted source evidence.
 - Keep operational SQLite state durable in deployment (mounted volume); do not treat the container filesystem as the database lifecycle.
 

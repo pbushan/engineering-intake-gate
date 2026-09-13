@@ -352,6 +352,8 @@ export class ApiClient {
         ...(typeof candidate.error === 'string' ? { error: candidate.error } : {}),
         ...(typeof candidate.message === 'string' ? { message: candidate.message } : {}),
         ...(Array.isArray(candidate.details) ? { details: candidate.details.filter((item): item is string => typeof item === 'string') } : {}),
+        ...(typeof candidate.fieldErrors === 'object' && candidate.fieldErrors !== null ? { fieldErrors: candidate.fieldErrors as NonNullable<ApiErrorResponse['fieldErrors']> } : {}),
+        ...(typeof candidate.sectionErrors === 'object' && candidate.sectionErrors !== null ? { sectionErrors: candidate.sectionErrors as NonNullable<ApiErrorResponse['sectionErrors']> } : {}),
       };
     } catch {
       return null;

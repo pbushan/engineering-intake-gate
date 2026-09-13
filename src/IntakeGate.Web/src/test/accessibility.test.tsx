@@ -64,6 +64,20 @@ it('UI-014 Phase 4B saved-query preview has no automated axe violations', async 
   expect(results.violations).toEqual([]);
 });
 
+it('UI-014 actionable validation summary and inline errors have no automated axe violations', async () => {
+  const draft = {
+    ...completeDraft,
+    values: { ...completeDraft.values!, policyUrl: null, policy: { id: null, version: null, criteria: [] } },
+  };
+  installMockBackend({ user: adminUser, setup: staged({ profileDetailsComplete: false, policyDetailsComplete: false, lastVisitedStep: 'Profile' }), draft });
+  window.history.replaceState({}, '', '/setup');
+  const { container } = render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Save & continue' }));
+  await screen.findByText('Complete the highlighted fields');
+  const results = await axe(container, { rules: { 'color-contrast': { enabled: false } } });
+  expect(results.violations).toEqual([]);
+});
+
 it.each([
   ['Analyze Ticket', '/analyze', 'Analyze Ticket'],
   ['Runs', '/runs', 'Runs'],

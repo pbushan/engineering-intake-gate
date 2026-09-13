@@ -99,15 +99,28 @@ describe('Phase 4B authoritative setup wizard', () => {
     renderSetup(staged({ azureDevOpsCredentialVerified: false, lastVisitedStep: 'AzureDevOps' }), { adoCredential: { ...verifiedCredential, verificationStatus: 'neverVerified', lastVerifiedAtUtc: null }, adoVerificationFails: true });
     await screen.findByRole('heading', { name: 'Azure DevOps credential' });
     await userEvent.click(screen.getByRole('button', { name: 'Test connection' }));
-    expect(await screen.findByText('The request could not be completed safely.')).toBeVisible();
+    expect(await screen.findByText('Azure DevOps rejected the stored credential. Replace or correct it, then test again.')).toBeVisible();
+    expect(screen.getByLabelText('Replacement PAT')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.queryByText(/provider stack|response body/i)).not.toBeInTheDocument();
+  });
+
+  it('ADO settings validation identifies and focuses the organization URL', async () => {
+    renderSetup({ ...incompleteSetup, lastVisitedStep: 'AzureDevOps' }, { adoSettingsValidationFails: true });
+    const user = userEvent.setup();
+    const organization = await screen.findByLabelText(/^Organization URL/);
+    await user.type(organization, 'not-a-url');
+    await user.type(screen.getByLabelText(/^Project/), 'Engineering');
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(await screen.findByText('Enter an absolute Azure DevOps organization URL.')).toBeVisible();
+    expect(organization).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('AI-009 shows a bounded provider verification failure without exposing the submitted key', async () => {
     renderSetup(staged({ aiCredentialVerified: false, aiModelConfigured: false, lastVisitedStep: 'Ai' }), { aiCredentials: { openai: { ...verifiedCredential, verificationStatus: 'neverVerified', lastVerifiedAtUtc: null } }, aiVerificationFails: true });
     await screen.findByRole('heading', { name: 'OpenAI credential' });
     await userEvent.click(screen.getByRole('button', { name: 'Verify provider' }));
-    expect(await screen.findByText('The request could not be completed safely.')).toBeVisible();
+    expect(await screen.findByText('The AI provider rejected the stored credential. Replace or correct it, then verify again.')).toBeVisible();
+    expect(screen.getByLabelText('Replacement API key')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.queryByText(/provider stack|response body|SYNTH_/i)).not.toBeInTheDocument();
   });
 
@@ -133,7 +146,8 @@ describe('Phase 4B authoritative setup wizard', () => {
     renderSetup(staged({ onboardingDraftExists: false, profileDetailsComplete: false, policyDetailsComplete: false, lastVisitedStep: 'Ai' }), { discoveryUnavailable: true });
     expect(await screen.findByText(/Confirmed model:/)).toHaveTextContent('test-model');
     await userEvent.click(screen.getByRole('button', { name: 'Discover models' }));
-    expect(await screen.findByText('Engineering Intake Gate is not ready for this operation yet.')).toBeVisible();
+    expect(await screen.findByText('The AI provider is temporarily unavailable. Try again later; the credential was not marked invalid.')).toBeVisible();
+    expect(screen.getByLabelText('Replacement API key')).toHaveAttribute('aria-invalid', 'false');
     expect(screen.getByText(/Confirmed model:/)).toHaveTextContent('test-model');
   });
 
@@ -149,6 +163,18 @@ describe('Phase 4B authoritative setup wizard', () => {
     expect(screen.getByLabelText('Model ID')).toHaveValue('manual-model-id');
   });
 
+  it('AI model validation identifies the manual model ID without blaming provider availability', async () => {
+    renderSetup(staged({ aiModelConfigured: false, lastVisitedStep: 'Ai' }), { aiModelValidationFails: true });
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Select a model' });
+    await user.click(screen.getByRole('button', { name: 'Enter model ID manually' }));
+    const model = screen.getByLabelText('Model ID');
+    await user.type(model, 'invalid model');
+    await user.click(screen.getByRole('button', { name: 'Validate model' }));
+    expect(await screen.findByText('Enter a valid model ID.')).toBeVisible();
+    expect(model).toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('UI-012 resumes persisted draft and supports keyboard-operable criterion add/remove', async () => {
     renderSetup(staged({ profileDetailsComplete: false, policyDetailsComplete: false, lastVisitedStep: 'Profile' }), { draft: completeDraft });
     const user = userEvent.setup();
@@ -158,6 +184,40 @@ describe('Phase 4B authoritative setup wizard', () => {
     await user.tab();
     await user.click(screen.getByRole('button', { name: 'Remove criterion 2' }));
     expect(screen.queryByRole('button', { name: 'Remove criterion 2' })).not.toBeInTheDocument();
+  });
+
+  it('shows actionable backend validation, preserves values, focuses summary, and opens hidden errors', async () => {
+    const incompleteDraft = {
+      ...completeDraft,
+      values: {
+        ...completeDraft.values!,
+        policyUrl: null,
+        intakeState: { validatedTag: 'Ready value kept', incompleteTag: null },
+        processing: {
+          ...completeDraft.values!.processing!,
+          contentLimits: { ...completeDraft.values!.processing!.contentLimits!, maximumTotalCharacters: null },
+        },
+        policy: { id: 'policy', version: '1.0', criteria: [] },
+      },
+      fieldErrors: {},
+      sectionErrors: {},
+    };
+    renderSetup(staged({ profileDetailsComplete: false, policyDetailsComplete: false, lastVisitedStep: 'Profile' }), { draft: incompleteDraft });
+    await userEvent.click(await screen.findByRole('button', { name: 'Save & continue' }));
+
+    const summary = (await screen.findByText('Complete the highlighted fields')).closest<HTMLElement>('[role="alert"]')!;
+    await waitFor(() => expect(summary).toHaveFocus());
+    expect(within(summary).getByRole('button', { name: /Policy URL — Policy URL is required/ })).toBeVisible();
+    expect(screen.getByLabelText(/^Policy URL/)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(/^Engineering Ready tag/)).toHaveValue('Ready value kept');
+    expect(screen.getByText(/contains validation errors/)).toBeVisible();
+    expect(screen.getByLabelText(/^Maximum total characters/)).toHaveAttribute('aria-invalid', 'true');
+
+    await userEvent.click(within(summary).getByRole('button', { name: /Policy URL/ }));
+    expect(screen.getByLabelText(/^Policy URL/)).toHaveFocus();
+    await userEvent.type(screen.getByLabelText(/^Policy URL/), 'https://example.test/policy');
+    expect(screen.getByLabelText(/^Policy URL/)).toHaveFocus();
+    expect(screen.getByLabelText(/^Policy URL/)).toHaveAttribute('aria-invalid', 'false');
   });
 
   it('UI-012 refetches the authoritative draft after a stale revision conflict', async () => {
@@ -210,10 +270,22 @@ describe('Phase 4B authoritative setup wizard', () => {
   it('ADO-005 distinguishes query validation failure from an empty successful query', async () => {
     renderSetup(staged({ azureDevOpsSavedQueryConfirmed: false, lastVisitedStep: 'SavedQuery' }), { adoSettings: { ...readyAzureDevOpsSettings, savedQueryId: null, queryConfirmed: false, queryValidatedAtUtc: null }, queryValidationFails: true });
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText(/^Saved-query URL or GUID/), '11111111-1111-1111-1111-111111111111');
+    const query = await screen.findByLabelText(/^Saved-query URL or GUID/);
+    await user.type(query, '11111111-1111-1111-1111-111111111111');
     await user.click(screen.getByRole('button', { name: 'Validate query' }));
-    expect(await screen.findByText('The request could not be completed safely.')).toBeVisible();
+    expect(await screen.findByText('Check the saved-query URL or GUID and its permissions, then validate again.')).toBeVisible();
+    expect(query).toHaveAttribute('aria-invalid', 'true');
     expect(screen.queryByText('Query is valid. No work items currently match.')).not.toBeInTheDocument();
+  });
+
+  it('saved-query syntax validation identifies the query input', async () => {
+    renderSetup(staged({ azureDevOpsSavedQueryConfirmed: false, lastVisitedStep: 'SavedQuery' }), { adoSettings: { ...readyAzureDevOpsSettings, savedQueryId: null, queryConfirmed: false, queryValidatedAtUtc: null }, queryInputValidationFails: true });
+    const user = userEvent.setup();
+    const query = await screen.findByLabelText(/^Saved-query URL or GUID/);
+    await user.type(query, 'not-a-query');
+    await user.click(screen.getByRole('button', { name: 'Validate query' }));
+    expect(await screen.findByText('Enter an Azure DevOps saved-query URL or GUID.')).toBeVisible();
+    expect(query).toHaveAttribute('aria-invalid', 'true');
   });
 
   it.each([
@@ -254,7 +326,8 @@ describe('Phase 4B authoritative setup wizard', () => {
     await user.clear(timezone);
     await user.type(timezone, 'Not/A-Timezone');
     await user.click(screen.getByRole('button', { name: 'Save & continue' }));
-    expect(await screen.findByText('The schedule expression or timezone is invalid.')).toBeVisible();
+    expect(await screen.findByText('Select a backend-supported timezone.')).toBeVisible();
+    expect(timezone).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByRole('heading', { name: 'Optional schedule' })).toBeVisible();
     expect(backend.calls.some((call) => call.path === '/api/setup/finalize')).toBe(false);
   });

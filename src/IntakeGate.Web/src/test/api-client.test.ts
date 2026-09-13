@@ -44,4 +44,41 @@ describe('API client security and errors', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('socket details'); }));
     await expect(new ApiClient().getProfile()).rejects.toEqual(ApiError.network());
   });
+
+  it('preserves structured validation fields and discards malformed entries', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({
+      error: 'ValidationFailed',
+      message: 'Some fields need attention.',
+      fieldErrors: { policyUrl: ['Enter a valid policy URL.'], malformed: 'not-an-array' },
+      sectionErrors: { 'policy.criteria': ['Add at least one intake criterion.'] },
+    }, 400)));
+    await expect(new ApiClient().getProfile()).rejects.toMatchObject({
+      kind: 'validation',
+      fieldErrors: { policyUrl: ['Enter a valid policy URL.'] },
+      sectionErrors: { 'policy.criteria': ['Add at least one intake criterion.'] },
+    });
+  });
+
+  it('keeps provider outages distinct from credential validation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({
+      error: 'AiProviderUnavailable',
+      message: 'The AI provider is temporarily unavailable. Try again later; the credential was not marked invalid.',
+    }, 503)));
+    await expect(new ApiClient().getProfile()).rejects.toMatchObject({
+      kind: 'external',
+      fieldErrors: {},
+    });
+  });
+
+  it('treats a provider-rejected credential as user-correctable when the backend identifies its field', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({
+      error: 'AiAuthenticationFailed',
+      message: 'The AI provider rejected the credential.',
+      fieldErrors: { 'ai.credential': ['Replace or correct the stored credential, then verify again.'] },
+    }, 502)));
+    await expect(new ApiClient().getProfile()).rejects.toMatchObject({
+      kind: 'validation',
+      fieldErrors: { 'ai.credential': ['Replace or correct the stored credential, then verify again.'] },
+    });
+  });
 });

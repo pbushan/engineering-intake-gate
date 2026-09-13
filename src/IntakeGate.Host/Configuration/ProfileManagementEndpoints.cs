@@ -174,7 +174,7 @@ public static class ProfileManagementEndpoints
                 CancellationToken cancellationToken) =>
             {
                 var draft = await onboarding.GetDraftAsync(cancellationToken);
-                return Results.Ok(ToDraftState(draft));
+                return Results.Ok(ToDraftState(draft, onboarding));
             })
             .RequireAuthorization(LocalAuthPolicies.Authenticated)
             .WithSummary("Read the singleton onboarding profile draft")
@@ -189,7 +189,7 @@ public static class ProfileManagementEndpoints
                 CancellationToken cancellationToken) =>
             {
                 var result = await onboarding.InitializeDraftAsync(CurrentActor(principal), cancellationToken);
-                return DraftMutationResult(result);
+                return DraftMutationResult(result, onboarding);
             })
             .RequireAuthorization(LocalAuthPolicies.Admin)
             .RequireApiAntiforgery()
@@ -211,7 +211,7 @@ public static class ProfileManagementEndpoints
                     return InvalidDraft();
                 var result = await onboarding.UpdateDraftAsync(request.ExpectedRevision,
                     request.Values, CurrentActor(principal), cancellationToken);
-                return DraftMutationResult(result);
+                return DraftMutationResult(result, onboarding);
             })
             .RequireAuthorization(LocalAuthPolicies.Admin)
             .RequireApiAntiforgery()
@@ -463,23 +463,28 @@ public static class ProfileManagementEndpoints
                 "ProfileConflict", "The singleton profile already exists or the supplied revision is stale."))
         };
 
-    private static OnboardingDraftStateResponse ToDraftState(OnboardingProfileDraft? draft) =>
-        draft is null
-            ? new OnboardingDraftStateResponse(false, null, null, null, null)
-            : new OnboardingDraftStateResponse(true, draft.Revision, draft.Values,
-                draft.CreatedAtUtc, draft.UpdatedAtUtc);
-
-    private static IResult DraftMutationResult(OnboardingDraftPersistenceResult result) => result.Status switch
+    private static OnboardingDraftStateResponse ToDraftState(
+        OnboardingProfileDraft? draft, OnboardingSetupService onboarding)
     {
-        OnboardingDraftPersistenceStatus.Succeeded => Results.Ok(ToDraftState(result.Draft)),
-        OnboardingDraftPersistenceStatus.NotFound => Results.NotFound(new ApiErrorResponse(
-            "OnboardingDraftNotFound", "Initialize the onboarding profile draft before updating it.")),
-        OnboardingDraftPersistenceStatus.ProfileAlreadyExists => Results.Conflict(new ApiErrorResponse(
-            "ProfileAlreadyConfigured", "Onboarding draft operations are unavailable after profile creation.")),
-        OnboardingDraftPersistenceStatus.InvalidConfiguration => InvalidDraft(),
-        _ => Results.Conflict(new ApiErrorResponse(
-            "OnboardingDraftConflict", "The onboarding draft revision is stale or the supplied draft is invalid."))
-    };
+        if (draft is null)
+            return new OnboardingDraftStateResponse(false, null, null, null, null, null, null);
+        var validation = onboarding.ValidateDraft(draft.Values);
+        return new OnboardingDraftStateResponse(true, draft.Revision, draft.Values,
+            draft.CreatedAtUtc, draft.UpdatedAtUtc, validation.FieldErrors, validation.SectionErrors);
+    }
+
+    private static IResult DraftMutationResult(
+        OnboardingDraftPersistenceResult result, OnboardingSetupService onboarding) => result.Status switch
+        {
+            OnboardingDraftPersistenceStatus.Succeeded => Results.Ok(ToDraftState(result.Draft, onboarding)),
+            OnboardingDraftPersistenceStatus.NotFound => Results.NotFound(new ApiErrorResponse(
+                "OnboardingDraftNotFound", "Initialize the onboarding profile draft before updating it.")),
+            OnboardingDraftPersistenceStatus.ProfileAlreadyExists => Results.Conflict(new ApiErrorResponse(
+                "ProfileAlreadyConfigured", "Onboarding draft operations are unavailable after profile creation.")),
+            OnboardingDraftPersistenceStatus.InvalidConfiguration => InvalidDraft(result.ValidationErrors),
+            _ => Results.Conflict(new ApiErrorResponse(
+                "OnboardingDraftConflict", "The onboarding draft revision is stale or the supplied draft is invalid."))
+        };
 
     private static IResult FinalizationResult(
         SetupFinalizationResult result, DeploymentConfigurationState runtime) => result.Status switch
@@ -488,7 +493,7 @@ public static class ProfileManagementEndpoints
                 statusCode: StatusCodes.Status201Created),
             SetupFinalizationStatus.DraftNotFound => Results.NotFound(new ApiErrorResponse(
                 "OnboardingDraftNotFound", "Initialize and complete the onboarding profile draft first.")),
-            SetupFinalizationStatus.InvalidConfiguration => InvalidDraft(),
+            SetupFinalizationStatus.InvalidConfiguration => InvalidDraft(result.ValidationErrors),
             SetupFinalizationStatus.ProductionNotAuthorized => Results.BadRequest(new ApiErrorResponse(
                 "ProductionNotAuthorized", "The current release posture authorizes controlled Dry Run only.")),
             SetupFinalizationStatus.SetupIncomplete => Results.Json(new ApiErrorResponse(
@@ -506,8 +511,11 @@ public static class ProfileManagementEndpoints
     private static IResult InvalidImport() => Results.BadRequest(new ApiErrorResponse(
         "InvalidLegacyImport", "Supply valid, secret-free profile and policy YAML content within the documented size limit."));
 
-    private static IResult InvalidDraft() => Results.BadRequest(new ApiErrorResponse(
-        "InvalidOnboardingDraft", "Supply complete supported profile and policy fields using the authoritative defaults contract."));
+    private static IResult InvalidDraft(InputValidationErrors? validationErrors = null) =>
+        Results.BadRequest(new ApiErrorResponse(
+            "ValidationFailed", "Some profile and policy fields need attention.",
+            FieldErrors: validationErrors?.FieldErrors,
+            SectionErrors: validationErrors?.SectionErrors));
 
     private static AuditActor CurrentActor(ClaimsPrincipal principal)
     {
@@ -614,7 +622,9 @@ public sealed record SetupStatusResponse(
     DateTimeOffset? ProgressUpdatedAtUtc);
 public sealed record OnboardingDraftUpdateRequest(int ExpectedRevision, OnboardingProfileDraftValues? Values);
 public sealed record OnboardingDraftStateResponse(bool Exists, int? Revision,
-    OnboardingProfileDraftValues? Values, DateTimeOffset? CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
+    OnboardingProfileDraftValues? Values, DateTimeOffset? CreatedAtUtc, DateTimeOffset? UpdatedAtUtc,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? FieldErrors,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? SectionErrors);
 public sealed record SetupProgressRequest(string? Step);
 public sealed record SetupProgressResponse(string? LastVisitedStep, DateTimeOffset? UpdatedAtUtc);
 public sealed record SetupFinalizeRequest(int ExpectedDraftRevision);

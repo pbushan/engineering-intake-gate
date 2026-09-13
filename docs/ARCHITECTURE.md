@@ -199,6 +199,8 @@ System Health reads persisted/derived state without contacting providers. Admins
 
 The product release is reported from the repository `VERSION` authority through .NET informational metadata. The checked `/openapi/v1.json` document remains contract major `v1`; its OpenAPI `info.version` is API-document metadata and is intentionally independent of the calendar product release.
 
+User-correctable HTTP failures may include safe `fieldErrors` and `sectionErrors` maps keyed by stable request-property paths. The backend remains the validation authority; the React client renders those maps through one shared summary/inline presentation path and does not recreate complex policy, Cronos, timezone, or provider validation. Authentication, authorization, conflict/stale state, provider availability, rate limits, and technical failures retain their distinct status and error-code semantics. Validation responses contain corrective messages only—never submitted secret values, provider bodies, raw configuration objects, SQL, or exception details.
+
 ## Release posture and boundaries
 
 The recorded decision is `READY_FOR_CONTROLLED_DRY_RUN`. Production (`LIVE`) remains rejected by backend management and activation paths; the UI contains no Production control. Mock LIVE-path tests verify safety logic but do not authorize real writes.

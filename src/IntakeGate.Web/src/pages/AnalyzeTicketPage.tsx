@@ -56,8 +56,16 @@ export function AnalyzeTicketPage() {
         void navigate(`/runs/${response.runId}`);
       }
     } catch (caught) {
-      setError(asApiError(caught));
-      requestAnimationFrame(() => statusRef.current?.focus());
+      const apiError = asApiError(caught);
+      const identityError = apiError.fieldErrors.workItemIdentity?.[0];
+      if (identityError) {
+        setValidation(identityError);
+        setError(null);
+        requestAnimationFrame(() => document.getElementById('work-item-identity')?.focus());
+      } else {
+        setError(apiError);
+        requestAnimationFrame(() => statusRef.current?.focus());
+      }
     } finally {
       setSubmitting(false);
     }
@@ -81,6 +89,7 @@ export function AnalyzeTicketPage() {
         <CardContent>
           <Stack component="form" spacing={2.5} onSubmit={(event) => void submit(event)} noValidate>
             <TextField
+              id="work-item-identity"
               autoFocus
               fullWidth
               label="Azure DevOps work-item ID or URL"
