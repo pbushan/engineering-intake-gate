@@ -1,6 +1,6 @@
 # Product Tour
 
-This tour uses the real `2026.9.0` application rendered against deterministic, organization-neutral test providers. Every identity, project, query, ticket, and credential shown is synthetic.
+This tour uses the real `2026.9.1` application rendered against deterministic, organization-neutral test providers. Every identity, project, query, ticket, and credential shown is synthetic.
 
 ## Bootstrap and login
 
