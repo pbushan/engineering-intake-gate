@@ -1,0 +1,60 @@
+profile:
+  id: example
+  version: "1"
+
+intakePolicy:
+  path: intake-policy.yaml
+  url: https://example.invalid/engineering/intake-standard
+
+intakeState:
+  validatedTag: INTAKE-VALIDATED
+  incompleteTag: INTAKE-INCOMPLETE
+
+ado:
+  organizationUrl: http://mock-ado:8081/generic-org
+  project: GenericProject
+  savedQueryId: 11111111-1111-1111-1111-111111111111
+  authentication:
+    patEnvironmentVariable: INTAKE_ADO_PAT
+
+ai:
+  provider: openai
+  model: example-model
+  timeoutSeconds: 60
+  authentication:
+    apiKeyEnvironmentVariable: INTAKE_AI_API_KEY
+  pricing: []
+
+schedule:
+  enabled: false
+  expression: "0 */15 * * * *"
+  timezone: UTC
+  initialLookback: 1.00:00:00
+
+processing:
+  executionMode: DRY_RUN
+  concurrency: 2
+  retries: 2
+  contentLimits:
+    maximumTotalCharacters: 100000
+    maximumComments: 100
+    maximumExtractedTextCharacters: 75000
+  attachmentLimits:
+    maximumCount: 20
+    maximumBytesPerAttachment: 10485760
+    maximumAggregateBytes: 52428800
+    maximumPdfPages: 200
+    maximumImageCount: 10
+    maximumImageBytes: 5242880
+    maximumCsvRows: 1000
+    maximumStructuredTextDepth: 32
+
+audit:
+  retentionDays: 90
+
+exclusions:
+  - id: excluded-state
+    field: Example.State
+    operator: equalsAny
+    values:
+      - Excluded

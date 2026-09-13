@@ -395,7 +395,7 @@
           "IntakeGate.Host"
         ],
         "summary": "Atomically update supported singleton profile fields",
-        "description": "Admin and antiforgery token required. The revision is optimistic concurrency control. Profile ID, ADO query, AI provider/model, and credentials cannot be changed here.",
+        "description": "Admin and antiforgery token required. The revision is optimistic concurrency control. Profile ID remains immutable; validated ADO query and AI changes are reconciled through their management workflows.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -6071,7 +6071,14 @@
             ]
           },
           "profile": {
-            "$ref": "#/components/schemas/ProfileWriteRequest"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingProfileDraftValues"
+              }
+            ]
           }
         },
         "additionalProperties": false

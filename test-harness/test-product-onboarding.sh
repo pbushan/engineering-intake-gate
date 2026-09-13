@@ -68,7 +68,7 @@ auth_curl --fail --silent --show-error --header 'Content-Type: application/json'
 refresh_csrf
 
 auth_curl --fail --silent --show-error http://127.0.0.1:8080/api/version | \
-    grep '"version":"2026.9.1"' >/dev/null
+    grep '"version":"2026.9.2"' >/dev/null
 
 record_progress Welcome
 record_progress AzureDevOps

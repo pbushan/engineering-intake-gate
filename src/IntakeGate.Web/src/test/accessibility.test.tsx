@@ -16,6 +16,7 @@ it.each([
   ['login', '/login', { bootstrapAvailable: false }, 'Welcome back'],
   ['bootstrap', '/bootstrap', { bootstrapAvailable: true }, 'Create the first administrator'],
   ['authenticated shell', '/', { user: adminUser, setup: completeSetup }, 'Engineering Intake Gate'],
+  ['profile configuration', '/configuration', { user: adminUser, setup: completeSetup }, 'Edit profile and configuration'],
   ['setup-incomplete Viewer', '/setup-required', { user: viewerUser, setup: incompleteSetup }, 'This installation is not ready yet'],
 ] as const)('A11Y core %s surface has no automated axe violations', async (_name, path, backend, heading) => {
   installMockBackend(backend);

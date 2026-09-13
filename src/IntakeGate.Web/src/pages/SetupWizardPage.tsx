@@ -63,6 +63,7 @@ import type {
   OnboardingDefaults,
   OnboardingDraftState,
   OnboardingDraftValues,
+  ProfileState,
   SetupStatus,
 } from '../api/contracts';
 import { useApplicationState } from '../state/ApplicationStateContext';
@@ -85,6 +86,45 @@ interface WizardData {
   adoSettings: AzureDevOpsSettings;
   aiSettings: AiSettings;
   aiCredentials: Record<AiProvider, CredentialMetadata>;
+  profile: ProfileState;
+}
+
+export interface SetupWizardPageProps {
+  mode?: 'setup' | 'edit';
+}
+
+function profileDraft(profile: ProfileState): OnboardingDraftState {
+  if (!profile.exists || !profile.configurationRevision || !profile.policy || !profile.ai ||
+      !profile.intakeState || !profile.schedule || !profile.processing || !profile.audit)
+    throw setupError('The persisted profile is incomplete and cannot be edited safely.');
+  return {
+    exists: true,
+    revision: profile.configurationRevision,
+    values: {
+      profileVersion: profile.profileVersion,
+      policyUrl: profile.policy.url,
+      intakeState: { ...profile.intakeState },
+      aiRuntime: { timeoutSeconds: profile.ai.timeoutSeconds, pricing: profile.ai.pricing },
+      schedule: {
+        enabled: profile.schedule.enabled,
+        expression: profile.schedule.expression,
+        timezone: profile.schedule.timezone,
+        initialLookback: profile.schedule.initialLookback,
+      },
+      processing: { ...profile.processing },
+      audit: { ...profile.audit },
+      exclusions: profile.exclusions?.map((item) => ({ ...item })) ?? [],
+      policy: {
+        id: profile.policy.id,
+        version: profile.policy.version,
+        criteria: profile.policy.criteria.map((item) => ({ ...item, na: { ...item.na } })),
+      },
+    },
+    createdAtUtc: null,
+    updatedAtUtc: null,
+    fieldErrors: {},
+    sectionErrors: {},
+  };
 }
 
 const emptyCredential: CredentialMetadata = {
@@ -132,6 +172,8 @@ const validationLabels: Readonly<Record<string, string>> = {
   'processing.attachmentLimits.maximumCsvRows': 'Maximum CSV rows',
   'processing.attachmentLimits.maximumStructuredTextDepth': 'Structured text depth',
   'aiRuntime.timeoutSeconds': 'AI timeout',
+  'aiRuntime.pricing': 'AI pricing',
+  exclusions: 'Exclusions',
   'audit.retentionDays': 'Retention days',
   'policy.id': 'Policy ID',
   'policy.version': 'Policy version',
@@ -178,7 +220,8 @@ function CredentialStatus({ metadata }: { metadata: CredentialMetadata }) {
   );
 }
 
-export function SetupWizardPage() {
+export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
+  const editing = mode === 'edit';
   const navigate = useNavigate();
   const application = useApplicationState();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -211,18 +254,22 @@ export function SetupWizardPage() {
   const [modelCandidate, setModelCandidate] = useState<AiModelCandidate | null>(null);
 
   const fetchData = useCallback(async (): Promise<WizardData> => {
-    const [setup, defaults, draft, adoCredential, adoSettings, aiSettings, openai, anthropic] = await Promise.all([
-      apiClient.getSetupStatus(), apiClient.getSetupDefaults(), apiClient.getOnboardingDraft(),
+    const [setup, defaults, onboardingDraft, profile, adoCredential, adoSettings, aiSettings, openai, anthropic] = await Promise.all([
+      apiClient.getSetupStatus(), apiClient.getSetupDefaults(), editing ? Promise.resolve(null) : apiClient.getOnboardingDraft(),
+      apiClient.getProfile(),
       apiClient.getAzureDevOpsCredential(), apiClient.getAzureDevOpsSettings(), apiClient.getAiSettings(),
       apiClient.getAiCredential('openai'), apiClient.getAiCredential('anthropic'),
     ]);
-    return { setup, defaults, draft, adoCredential, adoSettings, aiSettings, aiCredentials: { openai, anthropic } };
-  }, []);
+    if (editing && !profile.exists) throw setupError('Complete initial setup before editing the profile.');
+    const draft = editing ? profileDraft(profile) : onboardingDraft!;
+    return { setup, defaults, draft, profile, adoCredential, adoSettings, aiSettings, aiCredentials: { openai, anthropic } };
+  }, [editing]);
 
   const applyData = useCallback((next: WizardData, replaceDraft = false) => {
     setData(next);
     setAdoOrganization(next.adoSettings.organizationUrl ?? '');
     setAdoProject(next.adoSettings.project ?? '');
+    setQueryInput((current) => current || next.adoSettings.savedQueryId || '');
     if (next.aiSettings.provider === 'openai' || next.aiSettings.provider === 'anthropic') {
       setProvider(next.aiSettings.provider);
       setModelId(next.aiSettings.model ?? '');
@@ -245,7 +292,7 @@ export function SetupWizardPage() {
     void fetchData().then((next) => {
       if (!active) return;
       applyData(next, true);
-      setActiveStep(resolveResumeStep(next.setup, { adoSettingsReady: Boolean(next.adoSettings.organizationUrl && next.adoSettings.project) }));
+      setActiveStep(editing ? 0 : resolveResumeStep(next.setup, { adoSettingsReady: Boolean(next.adoSettings.organizationUrl && next.adoSettings.project) }));
       setLoading(false);
     }).catch((reason: unknown) => {
       if (!active) return;
@@ -253,7 +300,7 @@ export function SetupWizardPage() {
       setLoading(false);
     });
     return () => { active = false; };
-  }, [applyData, fetchData]);
+  }, [applyData, editing, fetchData]);
 
   useEffect(() => {
     if (!data) return;
@@ -264,7 +311,7 @@ export function SetupWizardPage() {
   }, [activeStep, data]);
 
   useEffect(() => {
-    if (activeStep !== 3 || !data || data.draft.exists || initializeInFlight.current) return;
+    if (editing || activeStep !== 3 || !data || data.draft.exists || initializeInFlight.current) return;
     initializeInFlight.current = true;
     setBusy('initialize-draft');
     void apiClient.initializeOnboardingDraft().then(async () => {
@@ -275,7 +322,7 @@ export function SetupWizardPage() {
       initializeInFlight.current = false;
       setBusy(null);
     });
-  }, [activeStep, data, refresh]);
+  }, [activeStep, data, editing, refresh]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -334,20 +381,29 @@ export function SetupWizardPage() {
 
   const saveDraft = async (): Promise<WizardData> => {
     if (!data?.draft.exists || data.draft.revision == null || !draftValues) {
-      throw setupError('The onboarding draft is unavailable.');
+      throw setupError(editing ? 'The persisted profile revision is unavailable.' : 'The onboarding draft is unavailable.');
     }
     try {
-      const saved = await apiClient.updateOnboardingDraft({ expectedRevision: data.draft.revision, values: draftValues });
+      const saved = editing
+        ? await apiClient.updateProfile({
+            expectedRevision: String(data.draft.revision),
+            profile: draftValues,
+          })
+        : await apiClient.updateOnboardingDraft({ expectedRevision: data.draft.revision, values: draftValues });
       setDraftDirty(false);
       draftDirtyRef.current = false;
-      setData((current) => current ? { ...current, draft: saved } : current);
+      if (!editing)
+        setData((current) => current ? { ...current, draft: saved as OnboardingDraftState } : current);
       return await refresh(true);
     } catch (reason) {
       const apiError = asApiError(reason);
       if (apiError.status === 409) {
         const next = await refresh(true);
-        setNotice('Setup changed in another session. The latest saved draft has been loaded; review it before saving again.');
-        setActiveStep(Math.min(activeStep, resolveResumeStep(next.setup, { adoSettingsReady: Boolean(next.adoSettings.organizationUrl && next.adoSettings.project) })));
+        setNotice(editing
+          ? 'The profile or integration state changed in another session. The latest persisted values are loaded; review them before retrying.'
+          : 'Setup changed in another session. The latest saved draft has been loaded; review it before saving again.');
+        if (!editing)
+          setActiveStep(Math.min(activeStep, resolveResumeStep(next.setup, { adoSettingsReady: Boolean(next.adoSettings.organizationUrl && next.adoSettings.project) })));
       }
       throw reason;
     }
@@ -364,14 +420,16 @@ export function SetupWizardPage() {
       goTo(2); return;
     }
     if (activeStep === 2) {
-      if (!data.setup.aiCredentialVerified || !data.setup.aiModelConfigured) {
-        setError(setupError('Verify the selected provider and confirm a model before continuing.'));
+      if (!data.setup.aiCredentialVerified || !data.setup.aiModelConfigured ||
+          provider !== data.aiSettings.provider || modelId.trim() !== data.aiSettings.model) {
+        setError(setupError('Verify the selected provider and validate and confirm the selected model before continuing.'));
         return;
       }
       goTo(3); return;
     }
     if (activeStep === 3) { goTo(4); return; }
     if (activeStep === 4) {
+      if (editing) { goTo(5); return; }
       void action('save-profile', async () => {
         const next = await saveDraft();
         if (!next.setup.profileDetailsComplete || !next.setup.policyDetailsComplete) {
@@ -387,18 +445,20 @@ export function SetupWizardPage() {
       return;
     }
     if (activeStep === 5) {
-      if (!data.setup.azureDevOpsSavedQueryConfirmed) {
+      if (!data.setup.azureDevOpsSavedQueryConfirmed ||
+          queryInput.trim().toLowerCase() !== String(data.adoSettings.savedQueryId ?? '').toLowerCase()) {
         setError(setupError('Validate and confirm the saved query before continuing.'));
         return;
       }
       goTo(6); return;
     }
     if (activeStep === 6) {
+      if (editing) { goTo(7); return; }
       void action('save-schedule', async () => {
         await saveDraft();
         await refresh(true);
         goTo(7);
-        return 'Schedule saved to the onboarding draft.';
+        return editing ? 'Schedule changes saved.' : 'Schedule saved to the onboarding draft.';
       });
     }
   };
@@ -416,9 +476,9 @@ export function SetupWizardPage() {
   return (
     <Stack spacing={3} sx={{ maxWidth: 1080 }}>
       <Box>
-        <Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>Administrator setup</Typography>
-        <Typography ref={headingRef} tabIndex={-1} component="h1" variant="h1">Set up Engineering Intake Gate</Typography>
-        <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 760 }}>Connect the services and define the intake evidence your team needs. Saved progress comes from the backend, so this wizard can safely resume after a refresh.</Typography>
+        <Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>{editing ? 'Administrator configuration · Beta' : 'Administrator setup'}</Typography>
+        <Typography ref={headingRef} tabIndex={-1} component="h1" variant="h1">{editing ? 'Edit profile and configuration' : 'Set up Engineering Intake Gate'}</Typography>
+        <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 760 }}>{editing ? 'Review and update the persisted singleton profile using the same guarded workflow as initial setup. Existing values remain unchanged unless you edit and save them.' : 'Connect the services and define the intake evidence your team needs. Saved progress comes from the backend, so this wizard can safely resume after a refresh.'}</Typography>
         <Link component={RouterLink} to="/help" sx={{ display: 'inline-block', mt: 1 }}>Open setup help</Link>
       </Box>
 
@@ -438,12 +498,12 @@ export function SetupWizardPage() {
       {activeStep === 0 ? <WelcomeStep /> : null}
       {activeStep === 1 ? (
         <Stack spacing={2.5}>
-          <SectionCard id="setup-ado.connection" invalid={Boolean(error?.sectionErrors['ado.connection'])} title="Azure DevOps connection" description="Save the organization and project through the backend, then verify access. The browser never connects to Azure DevOps directly.">
+          <SectionCard id="setup-ado.connection" invalid={Boolean(error?.sectionErrors['ado.connection'])} title="Azure DevOps connection" description={editing ? 'Organization and project are fixed for this iteration. You can replace and verify the credential, then validate a different saved query.' : 'Save the organization and project through the backend, then verify access. The browser never connects to Azure DevOps directly.'}>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 7 }}><TextField id="setup-ado.organizationUrl" fullWidth required label="Organization URL" value={adoOrganization} onChange={(event) => { setAdoOrganization(event.target.value); clearValidation('ado.organizationUrl'); }} error={Boolean(error?.fieldErrors['ado.organizationUrl'])} helperText={error?.fieldErrors['ado.organizationUrl']?.[0] ?? 'The HTTPS URL for the Azure DevOps organization.'} /></Grid>
-              <Grid size={{ xs: 12, md: 5 }}><TextField id="setup-ado.project" fullWidth required label="Project" value={adoProject} onChange={(event) => { setAdoProject(event.target.value); clearValidation('ado.project'); }} error={Boolean(error?.fieldErrors['ado.project'])} helperText={error?.fieldErrors['ado.project']?.[0]} /></Grid>
+              <Grid size={{ xs: 12, md: 7 }}><TextField id="setup-ado.organizationUrl" fullWidth required disabled={editing} label="Organization URL" value={adoOrganization} onChange={(event) => { setAdoOrganization(event.target.value); clearValidation('ado.organizationUrl'); }} error={Boolean(error?.fieldErrors['ado.organizationUrl'])} helperText={error?.fieldErrors['ado.organizationUrl']?.[0] ?? (editing ? 'Organization cannot be changed in Profile / Configuration.' : 'The HTTPS URL for the Azure DevOps organization.')} /></Grid>
+              <Grid size={{ xs: 12, md: 5 }}><TextField id="setup-ado.project" fullWidth required disabled={editing} label="Project" value={adoProject} onChange={(event) => { setAdoProject(event.target.value); clearValidation('ado.project'); }} error={Boolean(error?.fieldErrors['ado.project'])} helperText={error?.fieldErrors['ado.project']?.[0] ?? (editing ? 'Project cannot be changed in Profile / Configuration.' : undefined)} /></Grid>
             </Grid>
-            <Button sx={{ alignSelf: 'flex-start' }} variant="outlined" startIcon={<SaveOutlined />} disabled={busy !== null || !adoOrganization.trim() || !adoProject.trim()} onClick={() => void action('ado-settings', async () => { await apiClient.saveAzureDevOpsSettings(adoOrganization.trim(), adoProject.trim()); await refresh(); return 'Azure DevOps settings saved.'; })}>{busy === 'ado-settings' ? 'Saving…' : 'Save settings'}</Button>
+            {!editing ? <Button sx={{ alignSelf: 'flex-start' }} variant="outlined" startIcon={<SaveOutlined />} disabled={busy !== null || !adoOrganization.trim() || !adoProject.trim()} onClick={() => void action('ado-settings', async () => { await apiClient.saveAzureDevOpsSettings(adoOrganization.trim(), adoProject.trim()); await refresh(); return 'Azure DevOps settings saved.'; })}>{busy === 'ado-settings' ? 'Saving…' : 'Save settings'}</Button> : null}
           </SectionCard>
           <SectionCard title="Azure DevOps credential" description="A PAT is used only by the backend. Saved credentials can be replaced but never redisplayed.">
             <CredentialStatus metadata={data.adoCredential} />
@@ -510,13 +570,13 @@ export function SetupWizardPage() {
         </Stack>
       ) : null}
 
-      {activeStep === 3 ? <DefaultsStep defaults={data.defaults} draft={data.draft} initializing={busy === 'initialize-draft'} /> : null}
+      {activeStep === 3 ? <DefaultsStep defaults={data.defaults} draft={data.draft} initializing={!editing && busy === 'initialize-draft'} /> : null}
       {activeStep === 4 && draft ? (
-        <ProfileStep values={draft} criteria={criteria} processing={processing} content={content} attachments={attachments} busy={busy !== null} dirty={draftDirty} validation={error?.kind === 'validation' ? error : null} clearValidation={clearValidation} mutate={mutateDraft} save={() => void action('save-profile-only', async () => { await saveDraft(); return 'Profile and policy draft saved.'; })} />
+        <ProfileStep values={draft} criteria={criteria} processing={processing} content={content} attachments={attachments} busy={busy !== null} dirty={draftDirty} validation={error?.kind === 'validation' ? error : null} clearValidation={clearValidation} mutate={mutateDraft} save={editing ? null : () => void action('save-profile-only', async () => { await saveDraft(); return 'Profile and policy draft saved.'; })} />
       ) : null}
       {activeStep === 5 ? (
-        <SectionCard title="Confirm the governed saved query" description="Enter an Azure DevOps saved-query URL or GUID. The backend resolves and runs it; arbitrary WIQL is not accepted.">
-          <StatusLine label="Current query" ready={data.setup.azureDevOpsSavedQueryConfirmed} detail={data.adoSettings.savedQueryId ? `Saved query ${data.adoSettings.savedQueryId}` : 'No query confirmed'} />
+        <SectionCard title="Confirm the governed saved query" description="Enter an Azure DevOps saved-query URL or GUID. The backend validates it against the fixed organization, project, and current verified credential; arbitrary WIQL is not accepted.">
+          <StatusLine label="Current query" ready={data.setup.azureDevOpsSavedQueryConfirmed && queryInput.trim().toLowerCase() === String(data.adoSettings.savedQueryId ?? '').toLowerCase()} detail={data.adoSettings.savedQueryId ? `Saved query ${data.adoSettings.savedQueryId}` : 'No query confirmed'} />
           <TextField id="setup-ado.savedQuery" required label="Saved-query URL or GUID" value={queryInput} onChange={(event) => { setQueryInput(event.target.value); setQueryCandidate(null); clearValidation('ado.savedQuery'); }} error={Boolean(error?.fieldErrors['ado.savedQuery'])} helperText={error?.fieldErrors['ado.savedQuery']?.[0] ?? 'Use the saved query that defines the only work-item population this installation may inspect.'} />
           <Button sx={{ alignSelf: 'flex-start' }} variant="outlined" disabled={busy !== null || !queryInput.trim()} onClick={() => void action('query-validate', async () => { const result = await apiClient.validateSavedQuery(adoOrganization, adoProject, queryInput.trim()); setQueryCandidate(result); return result.totalCount === 0 ? 'Query is valid. No work items currently match.' : `Query is valid and returned ${String(result.totalCount)} work items.`; })}>{busy === 'query-validate' ? 'Validating…' : 'Validate query'}</Button>
           {queryCandidate ? <QueryPreview candidate={queryCandidate} confirm={() => void action('query-confirm', async () => {
@@ -530,13 +590,35 @@ export function SetupWizardPage() {
               throw reason;
             }
             setQueryCandidate(null);
-            await refresh();
+            const next = await refresh();
+            setQueryInput(String(next.adoSettings.savedQueryId ?? ''));
             return 'Saved query confirmed.';
           })} busy={busy === 'query-confirm'} /> : null}
         </SectionCard>
       ) : null}
       {activeStep === 6 && draft ? <ScheduleStep values={draft} kind={scheduleChoice(draft)} validation={error?.kind === 'validation' ? error : null} clearValidation={clearValidation} mutate={mutateDraft} /> : null}
-      {activeStep === 7 ? <ReviewStep data={data} edit={goTo} finalize={() => void action('finalize', async () => {
+      {activeStep === 7 ? <ReviewStep data={data} edit={goTo} editing={editing} dirty={draftDirty} finalize={() => void action('finalize', async () => {
+        if (editing) {
+          if (draftDirty) {
+            try {
+              await saveDraft();
+            } catch (reason) {
+              const apiError = asApiError(reason);
+              if (apiError.kind === 'validation') {
+                const scheduleError = [...Object.keys(apiError.fieldErrors), ...Object.keys(apiError.sectionErrors)]
+                  .some((key) => key.startsWith('schedule.'));
+                setActiveStep(scheduleError ? 6 : 4);
+              }
+              throw reason;
+            }
+          }
+          const status = await apiClient.getSetupStatus();
+          if (!status.setupComplete || !status.runtimeActivationCurrent)
+            throw setupError('The profile could not be activated with the current verified integration configuration. Review the incomplete steps and retry.');
+          await application.reload();
+          void navigate('/home', { replace: true });
+          return;
+        }
         const latest = await refresh(true);
         if (latest.draft.revision == null) throw setupError('The onboarding draft is unavailable.');
         let profile;
@@ -558,11 +640,15 @@ export function SetupWizardPage() {
 
       <Divider />
       <Stack direction={{ xs: 'column-reverse', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between' }}>
-        <Button startIcon={<ArrowBackRounded />} disabled={activeStep === 0 || busy !== null} onClick={() => goTo(activeStep - 1)}>Back</Button>
-        {activeStep < 7 ? <Button variant="contained" endIcon={<ArrowForwardRounded />} disabled={busy !== null || (activeStep === 3 && !data.draft.exists)} onClick={handleContinue}>{activeStep === 0 ? 'Continue setup' : activeStep === 4 ? 'Save & continue' : activeStep === 6 ? 'Save & continue' : 'Continue'}</Button> : null}
+        <Stack direction="row" spacing={1}><Button startIcon={<ArrowBackRounded />} disabled={activeStep === 0 || busy !== null} onClick={() => goTo(activeStep - 1)}>Back</Button>{editing ? <Button disabled={busy !== null} onClick={() => { if (!draftDirty || window.confirm('Discard unsaved profile changes?')) void navigate('/home'); }}>Cancel</Button> : null}</Stack>
+        {activeStep < 7 ? <Button variant="contained" endIcon={<ArrowForwardRounded />} disabled={busy !== null || (!editing && activeStep === 3 && !data.draft.exists)} onClick={handleContinue}>{activeStep === 0 ? (editing ? 'Review configuration' : 'Continue setup') : activeStep === 4 ? 'Save & continue' : activeStep === 6 ? 'Save & continue' : 'Continue'}</Button> : null}
       </Stack>
     </Stack>
   );
+}
+
+export function ProfileConfigurationPage() {
+  return <SetupWizardPage mode="edit" />;
 }
 
 function WelcomeStep() {
@@ -603,7 +689,7 @@ interface ProfileStepProps {
   validation: ApiError | null;
   clearValidation: (key: string) => void;
   mutate: (mutation: (values: OnboardingDraftValues) => void) => void;
-  save: () => void;
+  save: (() => void) | null;
 }
 
 function ProfileStep({ values, criteria, processing, content, attachments, busy, dirty, validation, clearValidation, mutate, save }: ProfileStepProps) {
@@ -618,6 +704,8 @@ function ProfileStep({ values, criteria, processing, content, attachments, busy,
   };
   const evidenceInvalid = Object.keys(validation?.fieldErrors ?? {}).some((key) =>
     key.startsWith('processing.contentLimits.') || key.startsWith('processing.attachmentLimits.'));
+  const pricing = values.aiRuntime?.pricing ?? [];
+  const exclusions = values.exclusions ?? [];
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   return (
     <Stack spacing={2.5}>
@@ -650,6 +738,23 @@ function ProfileStep({ values, criteria, processing, content, attachments, busy,
         ))}
         <Button id="setup-policy.criteria-action" startIcon={<AddRounded />} variant="outlined" sx={{ alignSelf: 'flex-start' }} onClick={() => { clearValidation('policy.criteria'); mutate((draft) => { ensurePolicy(draft).criteria?.push({ id: '', displayName: '', description: '', applicability: 'required', na: { allowed: false, requiresExplanation: false }, evaluationGuidance: '' }); }); }}>Add criterion</Button>
       </SectionCard>
+      <SectionCard id="setup-exclusions" invalid={Boolean(validation?.sectionErrors.exclusions)} title="Exclusions" description="Exclude bounded work-item field values before evaluation. Rules use the supported equals-any operator only.">
+        {validation?.sectionErrors.exclusions?.[0] ? <FormHelperText error role="alert">{validation.sectionErrors.exclusions[0]}</FormHelperText> : null}
+        {exclusions.map((exclusion, index) => (
+          <Paper component="fieldset" variant="outlined" key={index} sx={{ p: 2, m: 0 }}>
+            <Stack spacing={2}>
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}><Typography component="legend" variant="h3">Exclusion {index + 1}</Typography><Button color="error" startIcon={<DeleteOutlineRounded />} aria-label={`Remove exclusion ${index + 1}`} onClick={() => mutate((draft) => { draft.exclusions?.splice(index, 1); })}>Remove</Button></Stack>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required label="Exclusion ID" value={exclusion.id ?? ''} onChange={(event) => mutate((draft) => { const item = draft.exclusions?.[index]; if (item) item.id = event.target.value || null; })} /></Grid>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required label="Work-item field" value={exclusion.field ?? ''} onChange={(event) => mutate((draft) => { const item = draft.exclusions?.[index]; if (item) item.field = event.target.value || null; })} /></Grid>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth disabled label="Operator" value="equalsAny" /></Grid>
+                <Grid size={12}><TextField fullWidth required label="Values (one per line)" multiline minRows={2} value={(exclusion.values ?? []).join('\n')} onChange={(event) => mutate((draft) => { const item = draft.exclusions?.[index]; if (item) item.values = event.target.value.split('\n').map((value) => value.trim()).filter(Boolean); })} helperText="A work item is excluded when this field equals any listed value." /></Grid>
+              </Grid>
+            </Stack>
+          </Paper>
+        ))}
+        <Button startIcon={<AddRounded />} variant="outlined" sx={{ alignSelf: 'flex-start' }} onClick={() => { clearValidation('exclusions'); mutate((draft) => { draft.exclusions ??= []; draft.exclusions.push({ id: '', field: '', operator: 'equalsAny', values: [] }); }); }}>Add exclusion</Button>
+      </SectionCard>
       <SectionCard title="Processing" description="The backend validates concurrency, retry, content, and attachment bounds. Execution remains Controlled Dry Run.">
         <Alert severity="info">Execution mode: <strong>Controlled Dry Run</strong>. This wizard cannot enable Production.</Alert>
         <Grid container spacing={2}>
@@ -657,6 +762,25 @@ function ProfileStep({ values, criteria, processing, content, attachments, busy,
           <Grid size={{ xs: 12, sm: 4 }}><TextField id="setup-processing.retries" fullWidth required type="number" slotProps={{ htmlInput: { min: 0 } }} label="Retries" value={valueOf(processing?.retries)} onChange={(event) => { clearValidation('processing.retries'); setNumber((next) => mutate((draft) => { if (draft.processing) draft.processing.retries = next; }))(event); }} error={invalid('processing.retries')} helperText={message('processing.retries')} /></Grid>
           <Grid size={{ xs: 12, sm: 4 }}><TextField id="setup-aiRuntime.timeoutSeconds" fullWidth required type="number" slotProps={{ htmlInput: { min: 1 } }} label="AI timeout (seconds)" value={valueOf(values.aiRuntime?.timeoutSeconds)} onChange={(event) => { clearValidation('aiRuntime.timeoutSeconds'); setNumber((next) => mutate((draft) => { if (draft.aiRuntime) draft.aiRuntime.timeoutSeconds = next; }))(event); }} error={invalid('aiRuntime.timeoutSeconds')} helperText={message('aiRuntime.timeoutSeconds')} /></Grid>
         </Grid>
+      </SectionCard>
+      <SectionCard id="setup-aiRuntime.pricing" invalid={Boolean(validation?.sectionErrors['aiRuntime.pricing'])} title="AI pricing" description="Optional per-million-token pricing supports bounded cost estimates for the configured models.">
+        {validation?.sectionErrors['aiRuntime.pricing']?.[0] ? <FormHelperText error role="alert">{validation.sectionErrors['aiRuntime.pricing'][0]}</FormHelperText> : null}
+        {pricing.map((item, index) => (
+          <Paper component="fieldset" variant="outlined" key={index} sx={{ p: 2, m: 0 }}>
+            <Stack spacing={2}>
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}><Typography component="legend" variant="h3">Pricing entry {index + 1}</Typography><Button color="error" startIcon={<DeleteOutlineRounded />} aria-label={`Remove pricing entry ${index + 1}`} onClick={() => mutate((draft) => { draft.aiRuntime?.pricing?.splice(index, 1); })}>Remove</Button></Stack>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required label="Pricing provider" value={item.provider} onChange={(event) => mutate((draft) => { const entry = draft.aiRuntime?.pricing?.[index]; if (entry) entry.provider = event.target.value; })} /></Grid>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required label="Pricing model" value={item.model} onChange={(event) => mutate((draft) => { const entry = draft.aiRuntime?.pricing?.[index]; if (entry) entry.model = event.target.value; })} /></Grid>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required label="Currency" value={item.currency} onChange={(event) => mutate((draft) => { const entry = draft.aiRuntime?.pricing?.[index]; if (entry) entry.currency = event.target.value; })} /></Grid>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required type="number" label="Input per million tokens" value={valueOf(item.inputPerMillionTokens)} onChange={setNumber((next) => mutate((draft) => { const entry = draft.aiRuntime?.pricing?.[index]; if (entry) entry.inputPerMillionTokens = next ?? 0; }))} /></Grid>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth required type="number" label="Output per million tokens" value={valueOf(item.outputPerMillionTokens)} onChange={setNumber((next) => mutate((draft) => { const entry = draft.aiRuntime?.pricing?.[index]; if (entry) entry.outputPerMillionTokens = next ?? 0; }))} /></Grid>
+                <Grid size={{ xs: 12, sm: 4 }}><TextField fullWidth label="Pricing identity (optional)" value={item.identity ?? ''} onChange={(event) => mutate((draft) => { const entry = draft.aiRuntime?.pricing?.[index]; if (entry) entry.identity = event.target.value || null; })} /></Grid>
+              </Grid>
+            </Stack>
+          </Paper>
+        ))}
+        <Button startIcon={<AddRounded />} variant="outlined" sx={{ alignSelf: 'flex-start' }} onClick={() => { clearValidation('aiRuntime.pricing'); mutate((draft) => { draft.aiRuntime ??= { timeoutSeconds: 60, pricing: [] }; draft.aiRuntime.pricing ??= []; draft.aiRuntime.pricing.push({ provider: 'openai', model: '', inputPerMillionTokens: 0, outputPerMillionTokens: 0, currency: 'USD', identity: null }); }); }}>Add pricing entry</Button>
       </SectionCard>
       <Accordion id="setup-evidence-limits" expanded={evidenceExpanded || evidenceInvalid} onChange={(_, expanded) => setEvidenceExpanded(expanded)} sx={evidenceInvalid ? { outline: '2px solid', outlineColor: 'error.main' } : undefined}><AccordionSummary expandIcon={<ArrowForwardRounded sx={{ transform: 'rotate(90deg)' }} />}><Box><Typography variant="h3">Evidence limits</Typography><Typography variant="body2" color="text.secondary">Required bounded content and attachment processing values{evidenceInvalid ? ' — contains validation errors' : ''}</Typography></Box></AccordionSummary><AccordionDetails><Grid container spacing={2}>
         {[
@@ -667,7 +791,7 @@ function ProfileStep({ values, criteria, processing, content, attachments, busy,
         ].map(([label, key, value]) => { const fieldKey = `processing.attachmentLimits.${String(key)}`; return <Grid key={String(key)} size={{ xs: 12, sm: 4 }}><TextField id={`setup-${fieldKey}`} fullWidth required type="number" label={String(label)} value={valueOf(value)} onChange={(event) => { clearValidation(fieldKey); setNumber((next) => mutate((draft) => { const limits = draft.processing?.attachmentLimits; if (limits) (limits as Record<string, unknown>)[String(key)] = next; }))(event); }} error={invalid(fieldKey)} helperText={message(fieldKey)} /></Grid>; })}
       </Grid></AccordionDetails></Accordion>
       <SectionCard title="Audit retention"><TextField id="setup-audit.retentionDays" sx={{ maxWidth: 320 }} required type="number" label="Retention days" value={valueOf(values.audit?.retentionDays)} onChange={(event) => { clearValidation('audit.retentionDays'); setNumber((next) => mutate((draft) => { if (draft.audit) draft.audit.retentionDays = next; }))(event); }} error={invalid('audit.retentionDays')} helperText={message('audit.retentionDays')} /></SectionCard>
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><Button startIcon={<SaveOutlined />} variant="outlined" disabled={busy || !dirty} onClick={save}>Save draft</Button><Typography variant="body2" color="text.secondary">{dirty ? 'Unsaved changes' : 'All profile changes saved'}</Typography></Stack>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>{save ? <Button startIcon={<SaveOutlined />} variant="outlined" disabled={busy || !dirty} onClick={save}>Save draft</Button> : null}<Typography variant="body2" color="text.secondary">{dirty ? 'Unsaved changes' : 'All profile changes saved'}</Typography></Stack>
     </Stack>
   );
 }
@@ -697,7 +821,7 @@ function ScheduleStep({ values, kind, validation, clearValidation, mutate }: { v
   );
 }
 
-function ReviewStep({ data, edit, finalize, busy }: { data: WizardData; edit: (index: number) => void; finalize: () => void; busy: boolean }) {
+function ReviewStep({ data, edit, finalize, busy, editing, dirty }: { data: WizardData; edit: (index: number) => void; finalize: () => void; busy: boolean; editing: boolean; dirty: boolean }) {
   const values = data.draft.values;
   const selectedProvider = data.aiSettings.provider === 'anthropic' ? 'anthropic' : 'openai';
   const rows = [
@@ -711,13 +835,13 @@ function ReviewStep({ data, edit, finalize, busy }: { data: WizardData; edit: (i
   const allReady = data.setup.azureDevOpsCredentialVerified && data.setup.azureDevOpsSavedQueryConfirmed && data.setup.aiCredentialVerified && data.setup.aiModelConfigured && data.setup.profileDetailsComplete && data.setup.policyDetailsComplete && data.draft.revision != null;
   return (
     <Stack spacing={2.5}>
-      <SectionCard title="Review authoritative setup" description="This summary was refreshed from backend-owned draft, integration, credential metadata, query, and readiness state. No secret values are returned or displayed.">
+      <SectionCard title={editing ? 'Review profile changes' : 'Review authoritative setup'} description={editing ? 'Review the current persisted integration state and your profile changes before saving. No secret values are returned or displayed.' : 'This summary was refreshed from backend-owned draft, integration, credential metadata, query, and readiness state. No secret values are returned or displayed.'}>
         {rows.map(([label, detail, ready, step]) => <Paper variant="outlined" sx={{ p: 2 }} key={label}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}><Box><Typography variant="h3">{label}</Typography><Typography color="text.secondary">{detail}</Typography></Box><Stack direction="row" spacing={1}><Chip label={ready ? 'Ready' : 'Incomplete'} color={ready ? 'success' : 'warning'} variant="outlined" /><Button size="small" startIcon={<EditOutlined />} onClick={() => edit(step)}>Edit</Button></Stack></Stack></Paper>)}
         <Alert severity="success"><AlertTitle>Controlled Dry Run</AlertTitle>No Azure DevOps modifications will be made. Production activation is unavailable.</Alert>
       </SectionCard>
-      <SectionCard title="Finish setup" description="Finalization sends only the expected onboarding draft revision. The backend reconstructs, validates, creates, and activates the singleton configuration.">
-        <StatusLine label="Setup inputs" ready={allReady} detail={allReady ? 'All required backend checks are current.' : 'Return to incomplete steps before finalizing.'} />
-        <Button variant="contained" size="large" disabled={busy || !allReady} onClick={finalize}>{busy ? 'Activating…' : 'Finish setup and activate Dry Run'}</Button>
+      <SectionCard title={editing ? 'Save configuration' : 'Finish setup'} description={editing ? 'The profile revision is checked for conflicts, the complete candidate is validated, and a new immutable runtime generation is activated for future runs.' : 'Finalization sends only the expected onboarding draft revision. The backend reconstructs, validates, creates, and activates the singleton configuration.'}>
+        <StatusLine label={editing ? 'Configuration' : 'Setup inputs'} ready={allReady} detail={allReady ? (dirty ? 'Unsaved profile changes are ready to save.' : 'All required backend checks are current.') : 'Return to incomplete steps before finalizing.'} />
+        <Button variant="contained" size="large" disabled={busy || !allReady} onClick={finalize}>{busy ? 'Activating…' : editing ? (dirty ? 'Save and activate changes' : 'Finish review') : 'Finish setup and activate Dry Run'}</Button>
       </SectionCard>
     </Stack>
   );

@@ -61,12 +61,15 @@ public static class ProfileManagementEndpoints
                 ProfileUpdateRequest request,
                 ClaimsPrincipal principal,
                 ProfileManagementService profiles,
+                OnboardingSetupService onboarding,
                 DeploymentConfigurationState runtime,
                 CancellationToken cancellationToken) =>
             {
-                ProfileEditableConfiguration editable;
-                try { editable = ToEditable(request.Profile); }
-                catch (ProfileRequestValidationException) { return InvalidConfiguration(); }
+                if (request.Profile is null)
+                    return InvalidDraft();
+                var validation = onboarding.ValidateDraft(request.Profile);
+                if (!validation.IsEmpty || !onboarding.TryBuildEditable(request.Profile, out var editable) || editable is null)
+                    return InvalidDraft(validation);
                 var result = await profiles.UpdateAsync(request.ExpectedRevision, editable,
                     CurrentActor(principal), cancellationToken);
                 return MutationResult(result, runtime, created: false);
@@ -74,7 +77,7 @@ public static class ProfileManagementEndpoints
             .RequireAuthorization(LocalAuthPolicies.Admin)
             .RequireApiAntiforgery()
             .WithSummary("Atomically update supported singleton profile fields")
-            .WithDescription("Admin and antiforgery token required. The revision is optimistic concurrency control. Profile ID, ADO query, AI provider/model, and credentials cannot be changed here.")
+            .WithDescription("Admin and antiforgery token required. The revision is optimistic concurrency control. Profile ID remains immutable; validated ADO query and AI changes are reconciled through their management workflows.")
             .Accepts<ProfileUpdateRequest>("application/json")
             .Produces<ProfileStateResponse>()
             .Produces<ApiErrorResponse>(StatusCodes.Status400BadRequest)
@@ -454,6 +457,8 @@ public static class ProfileManagementEndpoints
                 statusCode: StatusCodes.Status503ServiceUnavailable),
             ProfileManagementStatus.RuntimeChangeInProgress => Results.Conflict(new ApiErrorResponse(
                 "ConfigurationActivationInProgress", "Another configuration activation is in progress.")),
+            ProfileManagementStatus.IntegrationValidationRequired => Results.Conflict(new ApiErrorResponse(
+                "IntegrationValidationRequired", "Verify changed credentials and reconfirm the saved query or AI model before saving the profile.")),
             ProfileManagementStatus.ActivationFailed when created => Results.Json(
                 ToState(result.Snapshot, runtime), statusCode: StatusCodes.Status201Created),
             ProfileManagementStatus.ActivationFailed => Results.Json(new ApiErrorResponse(
@@ -538,7 +543,7 @@ public sealed record ProfileWriteRequest(
     AuditRequest? Audit,
     IReadOnlyList<ExclusionRequest>? Exclusions,
     PolicyRequest? Policy);
-public sealed record ProfileUpdateRequest(string? ExpectedRevision, ProfileWriteRequest Profile);
+public sealed record ProfileUpdateRequest(string? ExpectedRevision, OnboardingProfileDraftValues? Profile);
 public sealed record LegacyProfileImportRequest(string? ProfileYaml, string? PolicyYaml);
 public sealed record IntakeStateRequest(string? ValidatedTag, string? IncompleteTag);
 public sealed record AiRuntimeRequest(int? TimeoutSeconds, IReadOnlyList<ModelPricingRequest>? Pricing);
