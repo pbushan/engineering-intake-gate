@@ -79,6 +79,10 @@ Run `./test-harness/check-version.sh` for the focused static version-drift check
 
 Generated `TestResults`, `bin`, `obj`, `node_modules`, `dist`, databases, keys, environment files, and local caches are intentionally ignored.
 
+## License
+
+Contributions submitted to this project are expected to be distributed under the project's [MIT License](LICENSE).
+
 ## Product constraints
 
 - Preserve intake-completeness-only PASS semantics.

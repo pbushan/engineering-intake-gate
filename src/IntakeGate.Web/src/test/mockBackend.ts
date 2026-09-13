@@ -115,7 +115,7 @@ export const profileState: ProfileState = {
   },
 };
 
-const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.0', environment: 'Test' };
+const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.1', environment: 'Test' };
 
 export const runSummary: RunSummary = {
   runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -180,7 +180,7 @@ export const homeSummary: HomeSummary = {
 
 export const systemHealth: SystemHealth = {
   generatedAtUtc: '2026-09-12T14:30:00Z',
-  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.0', environment: 'Test' },
+  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.1', environment: 'Test' },
   database: { status: 'healthy', reachable: true, currentSchemaVersion: 14, migrationCurrent: true },
   setup: { status: 'ready', complete: true, profileConfigured: true, savedQueryConfirmed: true },
   runtime: { status: 'active', activeGenerationId: 7, activationCurrent: true },

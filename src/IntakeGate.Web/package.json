@@ -1,7 +1,8 @@
 {
   "name": "@intake-gate/web",
-  "version": "2026.9.0",
+  "version": "2026.9.1",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=24.21.0 <27"
