@@ -373,10 +373,34 @@ public sealed class ProfileManagementEndpointTests
         Assert.Equal(120, persisted.GetProperty("audit").GetProperty("retentionDays").GetInt32());
         Assert.Equal(QueryId, persisted.GetProperty("azureDevOps").GetProperty("savedQueryId").GetGuid());
         Assert.Equal("openai", persisted.GetProperty("ai").GetProperty("provider").GetString());
+
+        using var organizationChange = await client.PostAsJsonAsync("/api/ado/query-candidates/validate", new
+        {
+            organizationUrl = "https://dev.azure.com/a-different-organization/",
+            project = "ProfileApiProject",
+            savedQuery = QueryId
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, organizationChange.StatusCode);
+
+        (await client.PutAsJsonAsync("/api/ai/providers/openai/credential/local", new
+        {
+            replacement = "replacement-secret-that-must-never-return"
+        })).EnsureSuccessStatusCode();
+        using var unverifiedCredentialSave = await client.PutAsJsonAsync("/api/profile", new
+        {
+            expectedRevision = updated.GetProperty("configurationRevision").GetString(),
+            profile = WriteRequest(retentionDays: 121)
+        });
+        Assert.Equal(HttpStatusCode.Conflict, unverifiedCredentialSave.StatusCode);
+        Assert.Contains("IntegrationValidationRequired",
+            await unverifiedCredentialSave.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(120, (await client.GetFromJsonAsync<JsonElement>("/api/profile"))
+            .GetProperty("audit").GetProperty("retentionDays").GetInt32());
         var audits = await ScalarAsync<string>(fixture.DatabasePath,
             "SELECT group_concat(operation || changed_fields_json, ',') FROM control_plane_audits;");
         Assert.Contains("ProfileScheduleChanged", audits, StringComparison.Ordinal);
         Assert.Contains("ProfileProductionModeRejected", audits, StringComparison.Ordinal);
+        Assert.DoesNotContain("replacement-secret-that-must-never-return", audits, StringComparison.Ordinal);
     }
 
     [Fact]

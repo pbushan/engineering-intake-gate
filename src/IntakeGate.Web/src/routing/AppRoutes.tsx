@@ -15,6 +15,7 @@ const AnalyzeTicketPage = lazy(() => import('../pages/AnalyzeTicketPage').then((
 const HomePage = lazy(() => import('../pages/HomePage').then((module) => ({ default: module.HomePage })));
 const HelpPage = lazy(() => import('../pages/HelpPage').then((module) => ({ default: module.HelpPage })));
 const SetupWizardPage = lazy(() => import('../pages/SetupWizardPage').then((module) => ({ default: module.SetupWizardPage })));
+const ProfileConfigurationPage = lazy(() => import('../pages/SetupWizardPage').then((module) => ({ default: module.ProfileConfigurationPage })));
 const RunsPage = lazy(() => import('../pages/RunsPage').then((module) => ({ default: module.RunsPage })));
 const RunDetailPage = lazy(() => import('../pages/RunDetailPage').then((module) => ({ default: module.RunDetailPage })));
 const EvaluationDetailPage = lazy(() => import('../pages/EvaluationDetailPage').then((module) => ({ default: module.EvaluationDetailPage })));
@@ -66,6 +67,7 @@ function AuthenticatedRoutes() {
         <Route path="system-health" element={<Suspense fallback={operationalFallback}><SystemHealthPage /></Suspense>} />
         <Route path="audit" element={<Suspense fallback={operationalFallback}><AuditPage /></Suspense>} />
         <Route path="setup" element={setup.setupComplete ? <Navigate to="/home" replace /> : admin ? <Suspense fallback={operationalFallback}><SetupWizardPage /></Suspense> : <Navigate to="/setup-required" replace />} />
+        <Route path="configuration" element={setup.setupComplete && admin ? <Suspense fallback={operationalFallback}><ProfileConfigurationPage /></Suspense> : <Navigate to={setup.setupComplete ? '/home' : setupDestination} replace />} />
         <Route path="setup-required" element={setup.setupComplete ? <Navigate to="/home" replace /> : admin ? <Navigate to="/setup" replace /> : <SetupIncompleteViewerPage />} />
         <Route path="help" element={<Suspense fallback={operationalFallback}><HelpPage /></Suspense>} />
         <Route path="*" element={<NotFoundPage />} />

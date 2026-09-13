@@ -41,6 +41,7 @@ export type RecentFailure = components['schemas']['RecentFailureResponse'];
 export type ControlPlaneAuditPage = components['schemas']['ControlPlaneAuditPageResponse'];
 export type ControlPlaneAuditItem = components['schemas']['ControlPlaneAuditItemResponse'];
 export type ProfileState = components['schemas']['ProfileStateResponse'];
+export type ProfileUpdate = components['schemas']['ProfileUpdateRequest'];
 export type SafeUser = components['schemas']['SafeUserResponse'];
 export type SetupStatus = components['schemas']['SetupStatusResponse'];
 export type SetupFinalizeRequest = components['schemas']['SetupFinalizeRequest'];

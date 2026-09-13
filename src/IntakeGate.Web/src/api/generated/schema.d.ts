@@ -427,7 +427,7 @@ export interface paths {
         };
         /**
          * Atomically update supported singleton profile fields
-         * @description Admin and antiforgery token required. The revision is optimistic concurrency control. Profile ID, ADO query, AI provider/model, and credentials cannot be changed here.
+         * @description Admin and antiforgery token required. The revision is optimistic concurrency control. Profile ID remains immutable; validated ADO query and AI changes are reconciled through their management workflows.
          */
         put: {
             parameters: {
@@ -3804,7 +3804,7 @@ export interface components {
         };
         ProfileUpdateRequest: {
             expectedRevision: null | string;
-            profile: components["schemas"]["ProfileWriteRequest"];
+            profile: null | components["schemas"]["OnboardingProfileDraftValues"];
         };
         ProfileWriteRequest: {
             profileVersion: null | string;

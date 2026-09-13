@@ -559,7 +559,7 @@ public sealed class OnboardingSetupService(
         values.Processing.AttachmentLimits.MaximumPdfPages is not null &&
         values.Audit?.RetentionDays is not null;
 
-    private bool TryBuildEditable(OnboardingProfileDraftValues values, out ProfileEditableConfiguration? editable)
+    public bool TryBuildEditable(OnboardingProfileDraftValues values, out ProfileEditableConfiguration? editable)
     {
         editable = null;
         if (values.IntakeState is null || values.AiRuntime is null || values.Schedule is null ||

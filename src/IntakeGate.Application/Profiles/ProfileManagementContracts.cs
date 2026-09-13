@@ -84,6 +84,7 @@ public enum ProfileManagementStatus
     InvalidConfiguration,
     ProductionNotAuthorized,
     RuntimeChangeInProgress,
+    IntegrationValidationRequired,
     ActivationFailed
 }
 
@@ -98,6 +99,7 @@ public sealed record ProfileManagementResult(
 public sealed class ProfileManagementService(
     IProfileManagementRepository repository,
     IAzureDevOpsSetupRepository azureDevOpsSetup,
+    IAzureDevOpsConfigurationRepository azureDevOpsConfiguration,
     IAiConfigurationRepository aiConfiguration,
     ISecretStore secrets,
     IDeploymentConfigurationValidator validator,
@@ -212,6 +214,24 @@ public sealed class ProfileManagementService(
         if (current is null) return new(ProfileManagementStatus.NotFound);
         if (editable.Processing.ExecutionMode == ExecutionMode.Live)
             return await ProductionRejectedAsync(actor, current.Configuration.Profile.Identity.Id, cancellationToken);
+
+        // A credential replacement invalidates the validation that authorized the current
+        // integration configuration. Reject the profile save before persistence so an edit
+        // can never leave the authoritative profile ahead of its verified integration state.
+        var adoState = await azureDevOpsConfiguration.GetStateAsync(cancellationToken);
+        var adoCredential = await secrets.GetMetadataAsync(CredentialSlot.AzureDevOps, cancellationToken);
+        var aiState = await aiConfiguration.GetAsync(cancellationToken);
+        var aiProvider = current.Configuration.Profile.Ai.Provider;
+        var aiCredential = await secrets.GetMetadataAsync(AiProviderNames.CredentialSlot(aiProvider), cancellationToken);
+        if (adoCredential.VerificationStatus != CredentialVerificationStatus.Verified ||
+            adoCredential.UpdatedAtUtc is null || adoState?.QueryConfirmed != true ||
+            adoState.QueryValidatedAtUtc is null || adoCredential.UpdatedAtUtc > adoState.QueryValidatedAtUtc ||
+            aiCredential.VerificationStatus != CredentialVerificationStatus.Verified ||
+            aiCredential.UpdatedAtUtc is null || aiState.CredentialUpdatedAtUtc != aiCredential.UpdatedAtUtc ||
+            !aiState.ModelConfirmed ||
+            !string.Equals(aiState.Provider, current.Configuration.Profile.Ai.Provider, StringComparison.Ordinal) ||
+            !string.Equals(aiState.Model, current.Configuration.Profile.Ai.Model, StringComparison.Ordinal))
+            return new(ProfileManagementStatus.IntegrationValidationRequired);
 
         DeploymentConfiguration candidate;
         try

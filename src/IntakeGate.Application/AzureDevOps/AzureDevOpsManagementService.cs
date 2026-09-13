@@ -148,6 +148,11 @@ public sealed class AzureDevOpsManagementService(
         if (!AzureDevOpsSettingsValidation.TryNormalizeOrganization(organizationValue, out var normalizedOrganization) ||
             !AzureDevOpsSettingsValidation.TryNormalizeProject(projectValue, out projectValue))
             return new(null, AzureDevOpsCandidateFailure.InvalidSettings);
+        if (current is not null &&
+            (!string.Equals(normalizedOrganization!.AbsoluteUri,
+                 current.Profile.Ado.OrganizationUrl.AbsoluteUri, StringComparison.Ordinal) ||
+             !string.Equals(projectValue, current.Profile.Ado.Project, StringComparison.Ordinal)))
+            return new(null, AzureDevOpsCandidateFailure.InvalidSettings);
         if (!AzureDevOpsSavedQueryResolver.TryResolve(savedQuery, normalizedOrganization!, projectValue, out var queryId))
             return new(null, AzureDevOpsCandidateFailure.InvalidSavedQueryInput);
 
@@ -177,6 +182,7 @@ public sealed class AzureDevOpsManagementService(
             }
         }
 
+        var metadata = await secrets.GetMetadataAsync(CredentialSlot.AzureDevOps, cancellationToken);
         var secret = await secrets.ResolveAsync(CredentialSlot.AzureDevOps, cancellationToken);
         if (secret.Availability != SecretAvailability.Available)
             return new(null, AzureDevOpsCandidateFailure.CredentialUnavailable);
@@ -196,7 +202,6 @@ public sealed class AzureDevOpsManagementService(
         if (!validation.Succeeded)
             return new(null, AzureDevOpsCandidateFailure.ProviderFailure, validation.Failure);
 
-        var metadata = await secrets.GetMetadataAsync(CredentialSlot.AzureDevOps, cancellationToken);
         var fingerprintProfileId = current?.Profile.Identity.Id ?? "profileless";
         var currentAdo = current?.Profile.Ado ?? baseAdo;
         var currentFingerprint = AzureDevOpsConfigurationFingerprint.Create(fingerprintProfileId, currentAdo);

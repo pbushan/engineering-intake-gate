@@ -24,6 +24,7 @@ import type {
   OnboardingDraftState,
   OnboardingDraftUpdate,
   ProfileState,
+  ProfileUpdate,
   RunDetail,
   RunExecution,
   RunHistoryPage,
@@ -211,6 +212,10 @@ export class ApiClient {
 
   public getProfile(signal?: AbortSignal): Promise<ProfileState> {
     return this.request('/api/profile', signal ? { signal } : {});
+  }
+
+  public updateProfile(body: ProfileUpdate): Promise<ProfileState> {
+    return this.request('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
   }
 
   public getVersion(signal?: AbortSignal): Promise<VersionInfo> {

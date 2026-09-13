@@ -75,12 +75,14 @@ public sealed class SetupStateService(
         var stagedAdo = profile || adoSetup is null ? null : await adoSetup.GetAsync(cancellationToken);
         var adoVerified = adoConfigurations is null ||
                           ado.VerificationStatus == CredentialVerificationStatus.Verified;
-        var queryConfirmed = adoConfigurations is null || adoState?.QueryConfirmed == true ||
-                             stagedAdo is
+        var queryConfirmed = adoConfigurations is null ||
+                             (adoState is { QueryConfirmed: true, QueryValidatedAtUtc: not null } &&
+                              ado.UpdatedAtUtc is not null && adoState.QueryValidatedAtUtc >= ado.UpdatedAtUtc) ||
+                             (stagedAdo is
                              {
                                  SavedQueryId: not null, ConfigurationFingerprint: not null,
                                  QueryValidatedAtUtc: not null
-                             };
+                             } && ado.UpdatedAtUtc is not null && stagedAdo.QueryValidatedAtUtc >= ado.UpdatedAtUtc);
         var aiState = aiConfigurations is null ? null : await aiConfigurations.GetAsync(cancellationToken);
         var configuredProvider = aiState?.Provider ?? configurationState.Configuration?.Profile.Ai.Provider;
         var requiredAi = configuredProvider switch

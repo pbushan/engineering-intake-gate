@@ -53,9 +53,9 @@ export function AppShell() {
     { label: 'System Health', to: '/system-health', icon: <HealthAndSafetyOutlined />, visible: true },
     { label: 'Audit', to: '/audit', icon: <FactCheckOutlined />, visible: true },
     { label: 'Setup', to: '/setup', icon: <SettingsOutlined />, visible: admin && setup?.setupComplete === false },
+    { label: 'Profile / Configuration (Beta)', to: '/configuration', icon: <SettingsOutlined />, visible: admin && setup?.setupComplete === true },
     { label: 'Help', to: '/help', icon: <HelpOutlineRounded />, visible: true },
   ].filter((item) => item.visible);
-  const planned = admin ? ['Profile / Configuration'] : [];
 
   const drawer = (
     <Box sx={{ width: drawerWidth, height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#102a43', color: '#f7fafc' }}>
@@ -77,10 +77,6 @@ export function AppShell() {
             );
           })}
         </List>
-        {planned.length ? <Typography variant="overline" sx={{ color: 'rgba(255,255,255,.58)', px: 2, mt: 2, display: 'block' }}>Planned</Typography> : null}
-        {planned.length ? <List dense aria-label="Planned navigation">
-          {planned.map((label) => <ListItem key={label} sx={{ px: 2 }}><ListItemText primary={label} slotProps={{ primary: { sx: { color: 'rgba(255,255,255,.64)', fontSize: '.88rem' } } }} /><Chip label="Later" size="small" sx={{ height: 22, bgcolor: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.7)' }} /></ListItem>)}
-        </List> : null}
       </Box>
       <Divider sx={{ borderColor: 'rgba(255,255,255,.12)' }} />
       <Box sx={{ p: 2 }}><Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}><AccountCircleOutlined /><Box sx={{ minWidth: 0 }}><Typography variant="body2" noWrap sx={{ fontWeight: 700 }}>{user.displayName ?? user.username}</Typography><Typography variant="caption" sx={{ color: 'rgba(255,255,255,.67)', textTransform: 'capitalize' }}>{user.role}</Typography></Box></Stack></Box>

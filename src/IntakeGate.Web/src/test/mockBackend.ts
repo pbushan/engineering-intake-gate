@@ -115,7 +115,7 @@ export const profileState: ProfileState = {
   },
 };
 
-const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.1', environment: 'Test' };
+const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.2', environment: 'Test' };
 
 export const runSummary: RunSummary = {
   runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -180,7 +180,7 @@ export const homeSummary: HomeSummary = {
 
 export const systemHealth: SystemHealth = {
   generatedAtUtc: '2026-09-12T14:30:00Z',
-  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.1', environment: 'Test' },
+  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.2', environment: 'Test' },
   database: { status: 'healthy', reachable: true, currentSchemaVersion: 14, migrationCurrent: true },
   setup: { status: 'ready', complete: true, profileConfigured: true, savedQueryConfirmed: true },
   runtime: { status: 'active', activeGenerationId: 7, activationCurrent: true },
@@ -238,6 +238,30 @@ export const completeDraft: OnboardingDraftState = {
   updatedAtUtc: '2026-09-12T12:30:00Z',
   fieldErrors: {},
   sectionErrors: {},
+};
+
+export const editableProfileState: ProfileState = {
+  ...profileState,
+  policy: {
+    id: completeDraft.values!.policy!.id!, version: completeDraft.values!.policy!.version!,
+    fingerprint: 'sha256:policy', url: completeDraft.values!.policyUrl!,
+    criteria: completeDraft.values!.policy!.criteria!.map((item) => ({
+      id: item.id!, displayName: item.displayName!, description: item.description!,
+      applicability: item.applicability!,
+      na: { allowed: item.na!.allowed!, requiresExplanation: item.na!.requiresExplanation! },
+      evaluationGuidance: item.evaluationGuidance!,
+    })),
+  },
+  azureDevOps: {
+    organizationUrl: 'https://dev.azure.example/contoso', project: 'Engineering',
+    savedQueryId: '11111111-1111-1111-1111-111111111111',
+  },
+  ai: { provider: 'openai', model: 'test-model', timeoutSeconds: 90, pricing: [{ provider: 'openai', model: 'test-model', inputPerMillionTokens: 2.5, outputPerMillionTokens: 10, currency: 'USD', identity: '2026-test-price' }] },
+  intakeState: { validatedTag: 'Engineering Ready', incompleteTag: 'Intake Incomplete' },
+  schedule: { enabled: false, expression: '', timezone: 'America/Toronto', initialLookback: '7.00:00:00', activationPending: false },
+  processing: profileState.processing,
+  audit: { retentionDays: 90 },
+  exclusions: [{ id: 'excluded-state', field: 'System.State', operator: 'equalsAny', values: ['Removed', 'Closed'] }],
 };
 
 const draftValidation = (values: OnboardingDraftState['values']) => {
@@ -322,6 +346,8 @@ export interface MockBackendOptions {
   finalizeConflict?: boolean;
   finalizeValidationFails?: boolean;
   finalizeActivationFails?: boolean;
+  profileUpdateConflict?: boolean;
+  profileUpdateValidationFails?: boolean;
   runPage?: RunHistoryPage;
   runDetail?: RunDetail;
   runItemDetail?: RunItemDetail;
@@ -342,7 +368,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     user: options.user ?? null,
     bootstrapAvailable: options.bootstrapAvailable ?? false,
     setup: options.setup ?? completeSetup,
-    profile: options.profile ?? profileState,
+    profile: options.profile ?? editableProfileState,
     loginSucceeds: options.loginSucceeds ?? true,
     bootstrapConflicts: options.bootstrapConflicts ?? false,
     unavailable: options.unavailable ?? false,
@@ -358,6 +384,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     } as Record<AiProvider, CredentialMetadata>,
     health: structuredClone(options.health ?? systemHealth),
     homeSummary: structuredClone(options.homeSummary ?? homeSummary),
+    pendingQueryId: null as string | null,
+    pendingModel: null as { provider: AiProvider; model: string } | null,
   };
   const calls: Array<{ path: string; method: string; headers: Headers; body: string | null }> = [];
 
@@ -439,6 +467,27 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       state.draft = { exists: false, revision: null, values: null, createdAtUtc: null, updatedAtUtc: null, fieldErrors: null, sectionErrors: null };
       return json(state.profile, 201);
     }
+    if (path === '/api/profile' && method === 'PUT') {
+      const body = JSON.parse(String(init.body)) as { expectedRevision: string; profile: NonNullable<OnboardingDraftState['values']> };
+      if (options.profileUpdateConflict || body.expectedRevision !== state.profile.configurationRevision)
+        return json({ error: 'ProfileConflict', message: 'The profile changed; refresh and retry.' }, 409);
+      if (options.profileUpdateValidationFails)
+        return json({ error: 'ValidationFailed', message: 'Some profile fields need attention.', fieldErrors: { 'schedule.timezone': ['Select a backend-supported timezone.'] } }, 400);
+      const values = body.profile;
+      state.profile = {
+        ...state.profile,
+        configurationRevision: 'sha256:updated',
+        profileVersion: values.profileVersion,
+        policy: values.policy && values.policyUrl ? {
+          id: values.policy.id!, version: values.policy.version!, fingerprint: 'sha256:updated-policy', url: values.policyUrl,
+          criteria: values.policy.criteria!.map((item) => ({ id: item.id!, displayName: item.displayName!, description: item.description!, applicability: item.applicability!, na: { allowed: item.na!.allowed!, requiresExplanation: item.na!.requiresExplanation! }, evaluationGuidance: item.evaluationGuidance! })),
+        } : null,
+        ai: state.profile.ai ? { ...state.profile.ai, timeoutSeconds: values.aiRuntime!.timeoutSeconds!, pricing: values.aiRuntime!.pricing! } : null,
+        intakeState: values.intakeState as ProfileState['intakeState'], schedule: values.schedule ? { ...values.schedule, enabled: values.schedule.enabled, expression: values.schedule.expression!, timezone: values.schedule.timezone!, initialLookback: values.schedule.initialLookback!, activationPending: false } : null,
+        processing: values.processing as ProfileState['processing'], audit: values.audit as ProfileState['audit'], exclusions: values.exclusions as ProfileState['exclusions'],
+      };
+      return json(state.profile);
+    }
     if (path === '/api/ado/credential' && method === 'GET') return json(state.adoCredential);
     if (path === '/api/ado/credential/local' && method === 'PUT') {
       state.adoCredential = credential(true, false); state.setup = { ...state.setup, azureDevOpsCredentialConfigured: true, azureDevOpsCredentialVerified: false }; return json(state.adoCredential);
@@ -469,11 +518,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         message: 'The saved query could not be found or accessed.',
         fieldErrors: { 'ado.savedQuery': ['Check the saved-query URL or GUID and its permissions, then validate again.'] },
       }, 502);
-      return json({ confirmationToken: 'query-token', expiresAtUtc: '2026-09-12T14:00:00Z', organizationUrl: state.adoSettings.organizationUrl ?? '', project: state.adoSettings.project ?? '', savedQueryId: '11111111-1111-1111-1111-111111111111', candidateFingerprint: 'sha256:candidate', totalCount: options.queryTotalCount ?? 2, preview: Array.from({ length: options.queryPreviewCount ?? 1 }, (_, index) => ({ id: 101 + index, title: `Safe work item ${index + 1}`, workItemType: 'Bug', state: 'New', webUrl: `https://dev.azure.example/item/${101 + index}` })) });
+      const body = JSON.parse(String(init.body)) as { savedQuery: string };
+      state.pendingQueryId = body.savedQuery;
+      return json({ confirmationToken: 'query-token', expiresAtUtc: '2026-09-12T14:00:00Z', organizationUrl: state.adoSettings.organizationUrl ?? '', project: state.adoSettings.project ?? '', savedQueryId: body.savedQuery, candidateFingerprint: 'sha256:candidate', totalCount: options.queryTotalCount ?? 2, preview: Array.from({ length: options.queryPreviewCount ?? 1 }, (_, index) => ({ id: 101 + index, title: `Safe work item ${index + 1}`, workItemType: 'Bug', state: 'New', webUrl: `https://dev.azure.example/item/${101 + index}` })) });
     }
     if (path === '/api/ado/query-candidates/confirm' && method === 'POST') {
       if (options.staleQueryCandidate) return json({ error: 'SavedQueryCandidateStale' }, 409);
-      state.adoSettings = { ...state.adoSettings, savedQueryId: '11111111-1111-1111-1111-111111111111', queryConfirmed: true, queryValidatedAtUtc: '2026-09-12T13:20:00Z' };
+      state.adoSettings = { ...state.adoSettings, savedQueryId: state.pendingQueryId, queryConfirmed: true, queryValidatedAtUtc: '2026-09-12T13:20:00Z' };
+      state.pendingQueryId = null;
       state.setup = { ...state.setup, azureDevOpsSavedQueryConfirmed: true }; return json({ configurationGeneration: 0, restartRequired: false, activationMessage: 'Staged.' });
     }
     const aiMatch = /^\/api\/ai\/providers\/(openai|anthropic)\/(credential(?:\/local|\/environment)?|credential-tests|models\/discover)$/.exec(path);
@@ -483,7 +535,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       if (operation === 'credential' && method === 'GET') return json(state.aiCredentials[selected]);
       if ((operation === 'credential/local' || operation === 'credential/environment') && method === 'PUT') {
         state.aiCredentials[selected] = { ...credential(true, false), sourceKind: operation.endsWith('environment') ? 'environmentReference' : 'locallyEncrypted' };
-        state.setup = { ...state.setup, aiCredentialConfigured: true, aiCredentialVerified: false, requiredAiCredentialSlot: selected === 'openai' ? 'openAiApiKey' : 'anthropicApiKey' };
+        state.setup = { ...state.setup, aiCredentialConfigured: true, aiCredentialVerified: false, aiModelConfigured: false, runtimeActivationCurrent: false, requiredAiCredentialSlot: selected === 'openai' ? 'openAiApiKey' : 'anthropicApiKey' };
         return json(state.aiCredentials[selected]);
       }
       if (operation === 'credential-tests' && method === 'POST') {
@@ -506,11 +558,13 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (path === '/api/ai/model-candidates/validate' && method === 'POST') {
       const body = JSON.parse(String(init.body)) as { provider: AiProvider; model: string };
       if (options.aiModelValidationFails) return json({ error: 'ValidationFailed', message: 'The model ID needs attention.', fieldErrors: { 'ai.model': ['Enter a valid model ID.'] } }, 400);
+      state.pendingModel = body;
       return json({ confirmationToken: 'model-token', expiresAtUtc: '2026-09-12T14:00:00Z', provider: body.provider, model: body.model, displayName: body.model });
     }
     if (path === '/api/ai/model-candidates/confirm' && method === 'POST') {
       if (options.staleModelCandidate) return json({ error: 'AiModelCandidateStale' }, 409);
-      state.aiSettings = { ...aiSettings(true), provider: state.setup.requiredAiCredentialSlot === 'anthropicApiKey' ? 'anthropic' : 'openai' };
+      state.aiSettings = { ...aiSettings(true), provider: state.pendingModel?.provider ?? 'openai', model: state.pendingModel?.model ?? 'test-model', profileConfigured: true };
+      state.pendingModel = null;
       state.setup = { ...state.setup, aiModelConfigured: true }; return json({ profileConfigured: false, restartRequired: false, activationMessage: 'Staged.' });
     }
     if (path === '/api/runs/work-items' && method === 'POST') {

@@ -93,7 +93,7 @@ describe('Phase 4A application lifecycle', () => {
     renderAt('/');
     expect(await screen.findByRole('heading', { name: 'Engineering Intake Gate' })).toBeVisible();
     expect(screen.queryByText('Analyze Ticket')).not.toBeInTheDocument();
-    expect(screen.queryByText('Profile / Configuration')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Profile \/ Configuration/)).not.toBeInTheDocument();
     expect(screen.getAllByText('viewer')).not.toHaveLength(0);
   });
 
@@ -101,7 +101,7 @@ describe('Phase 4A application lifecycle', () => {
     installMockBackend({ user: adminUser, setup: completeSetup });
     renderAt('/');
     expect(await screen.findByText('Analyze Ticket')).toBeVisible();
-    expect(screen.getByText('Profile / Configuration')).toBeVisible();
+    expect(screen.getByText('Profile / Configuration (Beta)')).toBeVisible();
     expect(screen.getAllByText('admin').length).toBeGreaterThan(0);
   });
 
