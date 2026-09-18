@@ -10,6 +10,7 @@ import type {
   OnboardingDefaults,
   OnboardingDraftState,
   ProfileState,
+  PortableProfileDocument,
   RunDetail,
   RunHistoryPage,
   RunItemDetail,
@@ -115,7 +116,7 @@ export const profileState: ProfileState = {
   },
 };
 
-const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.2', environment: 'Test' };
+const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.3', environment: 'Test' };
 
 export const runSummary: RunSummary = {
   runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -180,7 +181,7 @@ export const homeSummary: HomeSummary = {
 
 export const systemHealth: SystemHealth = {
   generatedAtUtc: '2026-09-12T14:30:00Z',
-  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.2', environment: 'Test' },
+  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.3', environment: 'Test' },
   database: { status: 'healthy', reachable: true, currentSchemaVersion: 14, migrationCurrent: true },
   setup: { status: 'ready', complete: true, profileConfigured: true, savedQueryConfirmed: true },
   runtime: { status: 'active', activeGenerationId: 7, activationCurrent: true },
@@ -487,6 +488,52 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         processing: values.processing as ProfileState['processing'], audit: values.audit as ProfileState['audit'], exclusions: values.exclusions as ProfileState['exclusions'],
       };
       return json(state.profile);
+    }
+    if (path === '/api/profile/export' && method === 'GET') {
+      const values = state.draft.exists && state.draft.values ? state.draft.values : completeDraft.values!;
+      const { policy, ...profile } = values;
+      return json({
+        format: 'engineering-intake-gate-profile', version: 1,
+        exportedAt: '2026-09-18T12:00:00Z', profile, policy,
+      });
+    }
+    if (path === '/api/profile/import/validate' && method === 'POST') {
+      const document = JSON.parse(String(init.body)) as PortableProfileDocument;
+      if (document?.format !== 'engineering-intake-gate-profile')
+        return json({ error: 'WrongProfileFormat', message: 'This file is not an Engineering Intake Gate profile.' }, 400);
+      if (document?.version > 1)
+        return json({ error: 'NewerProfileVersion', message: 'This profile was created by a newer version of Engineering Intake Gate and cannot be imported by this version.' }, 400);
+      if (document?.version !== 1 || !document?.profile || !document?.policy)
+        return json({ error: 'InvalidProfileFile', message: 'The selected file is not a valid Engineering Intake Gate profile.' }, 400);
+      const complete = Boolean(document.profile.policyUrl && document.policy.id && document.policy.criteria?.length);
+      return json({ document, complete,
+        fieldErrors: complete ? {} : { policyUrl: ['Policy URL is required.'] },
+        sectionErrors: complete ? {} : { 'policy.criteria': ['Add at least one intake criterion.'] } });
+    }
+    if (path === '/api/profile/import' && method === 'POST') {
+      const document = JSON.parse(String(init.body)) as PortableProfileDocument;
+      const values: NonNullable<OnboardingDraftState['values']> = { ...document.profile, policy: document.policy };
+      const complete = Boolean(values.policyUrl && values.policy?.id && values.policy?.criteria?.length);
+      if (complete && state.profile.exists) {
+        state.profile = { ...state.profile, configurationRevision: 'sha256:imported',
+          profileVersion: values.profileVersion, audit: values.audit as ProfileState['audit'],
+          processing: values.processing as ProfileState['processing'],
+          intakeState: values.intakeState as ProfileState['intakeState'],
+          exclusions: values.exclusions as ProfileState['exclusions'],
+          schedule: values.schedule ? { enabled: values.schedule.enabled, expression: values.schedule.expression!,
+            timezone: values.schedule.timezone!, initialLookback: values.schedule.initialLookback!, activationPending: false } : null,
+          ai: state.profile.ai ? { ...state.profile.ai, timeoutSeconds: values.aiRuntime!.timeoutSeconds!, pricing: values.aiRuntime!.pricing! } : null,
+          policy: { id: values.policy!.id!, version: values.policy!.version!, criteria: values.policy!.criteria!.map((item) => ({
+            id: item.id!, displayName: item.displayName!, description: item.description!, applicability: item.applicability!,
+            na: { allowed: item.na!.allowed!, requiresExplanation: item.na!.requiresExplanation! }, evaluationGuidance: item.evaluationGuidance!,
+          })), url: values.policyUrl!, fingerprint: 'sha256:imported-policy' } };
+        state.draft = { exists: false, revision: null, values: null, createdAtUtc: null, updatedAtUtc: null, fieldErrors: null, sectionErrors: null };
+        return json({ profileReplaced: true, profile: state.profile, draft: null });
+      }
+      const validation = draftValidation(values);
+      state.draft = { exists: true, revision: Number(state.draft.revision ?? 0) + 1, values,
+        createdAtUtc: '2026-09-18T12:00:00Z', updatedAtUtc: '2026-09-18T12:00:00Z', ...validation };
+      return json({ profileReplaced: false, profile: null, draft: state.draft });
     }
     if (path === '/api/ado/credential' && method === 'GET') return json(state.adoCredential);
     if (path === '/api/ado/credential/local' && method === 'PUT') {

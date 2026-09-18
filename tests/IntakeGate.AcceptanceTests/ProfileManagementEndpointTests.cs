@@ -436,7 +436,7 @@ public sealed class ProfileManagementEndpointTests
         await LoginAsync(viewer, "profile-viewer", "viewer-deterministic-password");
         Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/profile")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/setup/status")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await viewer.GetAsync("/api/profile/export")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/profile/export")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await viewer.PostAsJsonAsync("/api/profile", WriteRequest())).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
@@ -455,7 +455,8 @@ public sealed class ProfileManagementEndpointTests
         foreach (var path in new[]
                  {
                      "/api/auth/session", "/api/ado/settings", "/api/ai/settings", "/api/profile",
-                     "/api/profile/imports/legacy", "/api/profile/export", "/api/setup/status",
+                     "/api/profile/imports/legacy", "/api/profile/export", "/api/profile/import/validate",
+                     "/api/profile/import", "/api/setup/status",
                      "/api/setup/defaults", "/api/setup/profile-draft", "/api/setup/progress",
                      "/api/setup/finalize"
                  })
@@ -551,8 +552,13 @@ public sealed class ProfileManagementEndpointTests
         using var export = await client.GetAsync("/api/profile/export");
         export.EnsureSuccessStatusCode();
         var body = await export.Content.ReadAsStringAsync();
-        Assert.Contains("intake-gate-profile-export-v1", body, StringComparison.Ordinal);
-        Assert.Contains("\"profileId\":\"example\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"format\":\"engineering-intake-gate-profile\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"version\":1", body, StringComparison.Ordinal);
+        Assert.Contains("\"exportedAt\":", body, StringComparison.Ordinal);
+        Assert.Contains("\"profile\":", body, StringComparison.Ordinal);
+        Assert.Contains("\"policy\":", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("profileId", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("azureDevOps", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("authentication", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("environmentVariable", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("INTAKE_ADO_PAT", body, StringComparison.Ordinal);
@@ -566,6 +572,100 @@ public sealed class ProfileManagementEndpointTests
         using var viewer = fixture.Factory.CreateClient();
         await LoginAsync(viewer, "export-viewer", "viewer-deterministic-password");
         Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync("/api/profile/export")).StatusCode);
+    }
+
+    [Fact]
+    public async Task PROFILE_007_PortableImportValidatesRoundTripsPersistsAndIsAtomic()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        using var client = fixture.Factory.CreateClient();
+        await AuthenticatedTestClient.AuthenticateAdminAsync(client);
+        await ConfirmSetupAsync(client);
+        (await client.PostAsJsonAsync("/api/profile", WriteRequest())).EnsureSuccessStatusCode();
+
+        var original = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        var revision = original.GetProperty("configurationRevision").GetString();
+        var exported = await client.GetFromJsonAsync<JsonNode>("/api/profile/export");
+        Assert.NotNull(exported);
+        Assert.Equal("engineering-intake-gate-profile", exported!["format"]!.GetValue<string>());
+        Assert.Equal(1, exported["version"]!.GetValue<int>());
+        Assert.NotNull(exported["exportedAt"]);
+        Assert.Null(exported["profile"]!["policy"]);
+        Assert.Null(exported["profile"]!["profileId"]);
+        Assert.DoesNotContain("secret", exported.ToJsonString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("credential", exported.ToJsonString(), StringComparison.OrdinalIgnoreCase);
+
+        exported["profile"]!["audit"]!["retentionDays"] = 120;
+        using (var preview = await client.PostAsJsonAsync("/api/profile/import/validate", exported))
+        {
+            preview.EnsureSuccessStatusCode();
+            Assert.True((await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("complete").GetBoolean());
+        }
+        using (var import = await client.PostAsJsonAsync(
+                   $"/api/profile/import?expectedProfileRevision={Uri.EscapeDataString(revision!)}", exported))
+        {
+            import.EnsureSuccessStatusCode();
+            Assert.True((await import.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("profileReplaced").GetBoolean());
+        }
+        Assert.Equal(120, (await client.GetFromJsonAsync<JsonElement>("/api/profile"))
+            .GetProperty("audit").GetProperty("retentionDays").GetInt32());
+
+        var invalid = exported.DeepClone();
+        invalid["profile"]!["processing"]!["executionMode"] = "NOT_A_MODE";
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await client.PostAsJsonAsync("/api/profile/import/validate", invalid)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await client.PostAsJsonAsync("/api/profile/import", invalid)).StatusCode);
+        Assert.Equal(120, (await client.GetFromJsonAsync<JsonElement>("/api/profile"))
+            .GetProperty("audit").GetProperty("retentionDays").GetInt32());
+
+        static JsonNode WithValue(JsonNode node, string key, JsonNode? value)
+        {
+            node.AsObject()[key] = value;
+            return node;
+        }
+        static JsonNode Without(JsonNode node, string key)
+        {
+            node.AsObject().Remove(key);
+            return node;
+        }
+        foreach (var invalidDocument in new JsonNode[]
+                 {
+                     new JsonObject(),
+                     WithValue(exported.DeepClone(), "format", "wrong"),
+                     Without(exported.DeepClone(), "version"),
+                     WithValue(exported.DeepClone(), "version", 2),
+                     Without(exported.DeepClone(), "profile"),
+                     Without(exported.DeepClone(), "policy")
+                 })
+            Assert.Equal(HttpStatusCode.BadRequest,
+                (await client.PostAsJsonAsync("/api/profile/import/validate", invalidDocument)).StatusCode);
+    }
+
+    [Fact]
+    public async Task PROFILE_008_IncompletePortableImportPersistsDraftAndKeepsValidation()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        using var client = fixture.Factory.CreateClient();
+        await AuthenticatedTestClient.AuthenticateAdminAsync(client);
+        var exported = await client.GetFromJsonAsync<JsonNode>("/api/profile/export");
+        Assert.NotNull(exported);
+        using var preview = await client.PostAsJsonAsync("/api/profile/import/validate", exported);
+        preview.EnsureSuccessStatusCode();
+        var previewBody = await preview.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(previewBody.GetProperty("complete").GetBoolean());
+        Assert.True(previewBody.GetProperty("fieldErrors").TryGetProperty("policyUrl", out _));
+
+        using var import = await client.PostAsJsonAsync("/api/profile/import", exported);
+        import.EnsureSuccessStatusCode();
+        var imported = await import.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(imported.GetProperty("profileReplaced").GetBoolean());
+        Assert.True(imported.GetProperty("draft").GetProperty("exists").GetBoolean());
+        var reloaded = await client.GetFromJsonAsync<JsonElement>("/api/setup/profile-draft");
+        Assert.True(reloaded.GetProperty("exists").GetBoolean());
+        Assert.True(reloaded.GetProperty("fieldErrors").TryGetProperty("policyUrl", out _));
+        Assert.Equal(0L, await ScalarAsync<long>(fixture.DatabasePath,
+            "SELECT COUNT(*) FROM singleton_profile_configuration;"));
     }
 
     private static async Task ConfirmSetupAsync(HttpClient client)

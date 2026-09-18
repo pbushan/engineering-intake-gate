@@ -52,3 +52,24 @@ export type VersionInfo = components['schemas']['VersionResponse'];
 export type UserRole = SafeUser['role'];
 export type AiProvider = 'openai' | 'anthropic';
 export type HomeWindowDays = 7 | 30 | 90;
+
+export interface PortableProfileDocument {
+  format: 'engineering-intake-gate-profile';
+  version: 1;
+  exportedAt: string;
+  profile: Omit<NonNullable<OnboardingDraftValues>, 'policy'>;
+  policy: NonNullable<NonNullable<OnboardingDraftValues>['policy']>;
+}
+
+export interface ProfileImportPreview {
+  document: PortableProfileDocument;
+  complete: boolean;
+  fieldErrors: Record<string, string[]>;
+  sectionErrors: Record<string, string[]>;
+}
+
+export interface ProfileImportResult {
+  profileReplaced: boolean;
+  profile: ProfileState | null;
+  draft: OnboardingDraftState | null;
+}

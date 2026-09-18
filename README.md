@@ -2,7 +2,7 @@
 
 Engineering Intake Gate is a self-hosted engineering intake quality-control platform. It evaluates Azure DevOps work items against configurable intake standards before Engineering begins investigation, combining deterministic governance with structured AI-assisted assessment.
 
-**Current release:** `2026.9.2` (Controlled Dry Run MVP). It shows exactly what feedback and intake-state changes would be proposed, but it cannot enable Production or modify Azure DevOps.
+**Current release:** `2026.9.3` (Controlled Dry Run MVP). It shows exactly what feedback and intake-state changes would be proposed, but it cannot enable Production or modify Azure DevOps.
 
 ## Why this exists
 
@@ -220,6 +220,8 @@ Choose OpenAI or Anthropic, save an API key locally or as an environment referen
 
 Initialize the server-owned draft, then define versioned criteria and evaluation guidance. Configure distinct Engineering Ready/Intake Incomplete tags, policy URL/version, exclusions, retry/concurrency settings, AI timeout, audit retention, and bounded content/attachment limits. These settings describe intake sufficiency only; they must not encode defect truth, ownership, severity, or priority decisions.
 
+The setup and Profile / Configuration screens can export these portable settings to versioned JSON and import them later. Import is a full replacement after explicit confirmation, not a merge. The JSON contract excludes credentials, generated identifiers, runtime state, and history; incomplete imports remain editable and use the existing Profile & Policy validation guidance.
+
 ### 5. Saved query
 
 Enter a query GUID or a query URL from the configured organization/project. The backend resolves and executes it, reports the count, and previews the first 10 items before explicit confirmation. This saved query is the governance boundary for both batch and manual analysis.
@@ -318,7 +320,7 @@ The root `docker-compose.yml` is always the public product topology. Reproducibl
 
 Releases use calendar-first, SemVer-compatible `YYYY.M.PATCH` versions. The month is never zero-padded, the monthly patch counter starts at `0`, prereleases use normal SemVer identifiers, and Git tags add a `v` prefix. See [Versioning](docs/VERSIONING.md) for the concise policy.
 
-The current release is `2026.9.2`; its corresponding Git tag is `v2026.9.2` when the owner chooses to create it.
+The current release is `2026.9.3`; its corresponding Git tag is `v2026.9.3` when the owner chooses to create it.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for focused development commands.
 
@@ -357,6 +359,7 @@ These are deliberate first-release boundaries:
 - [Requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md)
 - [Engineering rules](docs/ENGINEERING_RULES.md)
 - [Versioning](docs/VERSIONING.md)
+- [2026.9.3 release notes](docs/RELEASE_NOTES_2026.9.3.md)
 - [2026.9.2 release notes](docs/RELEASE_NOTES_2026.9.2.md)
 - [2026.9.1 release notes](docs/RELEASE_NOTES_2026.9.1.md)
 - [Development guide](CONTRIBUTING.md)

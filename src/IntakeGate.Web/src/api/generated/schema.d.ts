@@ -664,8 +664,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Export the secret-free singleton profile
-         * @description Admin and Viewer. Export is equivalent to safe profile read and cannot bypass validation on later import.
+         * Export the portable, secret-free Profile and Policy configuration
+         * @description Exports the current draft when present, otherwise the authoritative profile. Credentials, integration bindings, runtime state, history, and generated identifiers are excluded.
          */
         get: {
             parameters: {
@@ -682,7 +682,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ProfileExportResponse"];
+                        "application/json": components["schemas"]["PortableProfileDocument"];
                     };
                 };
                 /** @description Unauthorized */
@@ -703,8 +703,68 @@ export interface paths {
                         "application/json": components["schemas"]["ApiErrorResponse"];
                     };
                 };
-                /** @description Not Found */
-                404: {
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile/import/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate a portable Profile and Policy document without changing state */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PortableProfileDocument"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProfileImportPreviewResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -714,8 +774,88 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Atomically replace the portable Profile and Policy configuration
+         * @description Complete configured profiles replace the authoritative profile. Incomplete imports replace the persisted draft and retain normal validation errors.
+         */
+        post: {
+            parameters: {
+                query?: {
+                    expectedProfileRevision?: string;
+                    expectedDraftRevision?: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PortableProfileDocument"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProfileImportResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1947,76 +2087,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/diagnostics/runs/{runId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    runId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/diagnostics/runtime-records": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/ado/credential": {
         parameters: {
             query?: never;
@@ -3182,20 +3252,6 @@ export interface components {
             detailUrl: string;
             itemDetailUrl: null | string;
         };
-        AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            instanceId: string;
-            /** Format: date-time */
-            startedAtUtc: string;
-            applicationVersion: null | string;
-        };
-        AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring: {
-            /** Format: int32 */
-            count: number | string;
-            records: null | components["schemas"]["AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"][];
-        };
         AnonymousTypeOfstring: {
             status: null | string;
         };
@@ -3756,6 +3812,25 @@ export interface components {
             url: string;
             criteria: components["schemas"]["PolicyCriterionResponse"][];
         };
+        PortableProfile: {
+            profileVersion: null | string;
+            policyUrl: null | string;
+            intakeState: null | components["schemas"]["OnboardingIntakeState"];
+            aiRuntime: null | components["schemas"]["OnboardingAiRuntime"];
+            schedule: null | components["schemas"]["OnboardingSchedule"];
+            processing: null | components["schemas"]["OnboardingProcessing"];
+            audit: null | components["schemas"]["OnboardingAudit"];
+            exclusions: null | components["schemas"]["OnboardingExclusion"][];
+        };
+        PortableProfileDocument: {
+            format: string;
+            /** Format: int32 */
+            version: number | string;
+            /** Format: date-time */
+            exportedAt: string;
+            profile: components["schemas"]["PortableProfile"];
+            policy: components["schemas"]["OnboardingPolicy"];
+        };
         ProcessingRequest: {
             executionMode: null | string;
             /** Format: int32 */
@@ -3783,9 +3858,20 @@ export interface components {
             generationId?: null | number | string;
             status?: string;
         };
-        ProfileExportResponse: {
-            formatVersion: string;
-            profile: components["schemas"]["ProfileStateResponse"];
+        ProfileImportPreviewResponse: {
+            document: components["schemas"]["PortableProfileDocument"];
+            complete: boolean;
+            fieldErrors: {
+                [key: string]: string[];
+            };
+            sectionErrors: {
+                [key: string]: string[];
+            };
+        };
+        ProfileImportResponse: {
+            profileReplaced: boolean;
+            profile: null | components["schemas"]["ProfileStateResponse"];
+            draft: null | components["schemas"]["OnboardingDraftStateResponse"];
         };
         ProfileStateResponse: {
             exists: boolean;
