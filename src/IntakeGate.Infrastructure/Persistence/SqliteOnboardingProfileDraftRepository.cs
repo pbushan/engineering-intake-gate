@@ -126,6 +126,51 @@ public sealed class SqliteOnboardingProfileDraftRepository(string databasePath)
             new OnboardingProfileDraft(nextRevision, values, current.CreatedAtUtc, now));
     }
 
+    public async Task<OnboardingDraftPersistenceResult> ReplaceForImportAsync(
+        int? expectedRevision,
+        OnboardingProfileDraftValues values,
+        AuditActor actor,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateActor(actor);
+        ArgumentNullException.ThrowIfNull(values);
+        var now = nowUtc.ToUniversalTime();
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        var current = await ReadAsync(connection, transaction, cancellationToken);
+        if ((current is null && expectedRevision is not null) ||
+            (current is not null && expectedRevision != current.Revision))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return new(OnboardingDraftPersistenceStatus.Conflict);
+        }
+        var nextRevision = checked((current?.Revision ?? 0) + 1);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO onboarding_profile_draft
+                (singleton_id, draft_json, revision, created_at_utc, updated_at_utc, updated_by_user_id)
+            VALUES (1, $draft, $revision, $created, $now, $actor)
+            ON CONFLICT(singleton_id) DO UPDATE SET
+                draft_json = excluded.draft_json,
+                revision = excluded.revision,
+                updated_at_utc = excluded.updated_at_utc,
+                updated_by_user_id = excluded.updated_by_user_id;
+            """;
+        command.Parameters.AddWithValue("$draft", JsonSerializer.Serialize(values, JsonOptions));
+        command.Parameters.AddWithValue("$revision", nextRevision);
+        command.Parameters.AddWithValue("$created", Format(current?.CreatedAtUtc ?? now));
+        command.Parameters.AddWithValue("$now", Format(now));
+        command.Parameters.AddWithValue("$actor", actor.Id.ToString("D"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        await InsertAuditAsync(connection, transaction, actor, now, "ProfilePortableImportStaged",
+            ["profile", "policy", "draftRevision"], cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(OnboardingDraftPersistenceStatus.Succeeded,
+            new OnboardingProfileDraft(nextRevision, values, current?.CreatedAtUtc ?? now, now));
+    }
+
     private static async Task<OnboardingProfileDraft?> ReadAsync(
         SqliteConnection connection, SqliteTransaction? transaction, CancellationToken cancellationToken)
     {

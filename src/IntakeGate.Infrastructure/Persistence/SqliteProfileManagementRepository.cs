@@ -348,6 +348,12 @@ public sealed class SqliteProfileManagementRepository : IProfileManagementReposi
             if (await update.ExecuteNonQueryAsync(cancellationToken) != 1)
                 throw new InvalidOperationException("The singleton profile changed during an atomic profile update.");
         }
+        await using (var clearImportedDraft = connection.CreateCommand())
+        {
+            clearImportedDraft.Transaction = transaction;
+            clearImportedDraft.CommandText = "DELETE FROM onboarding_profile_draft WHERE singleton_id = 1;";
+            await clearImportedDraft.ExecuteNonQueryAsync(cancellationToken);
+        }
         await InsertAuditAsync(connection, transaction, actor, now, "ProfileUpdated",
             current.Configuration.Profile.Identity.Id, changedFields, cancellationToken);
         if (changedFields.Contains("schedule", StringComparer.Ordinal))

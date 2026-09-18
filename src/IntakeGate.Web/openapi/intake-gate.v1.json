@@ -546,15 +546,157 @@
         "tags": [
           "IntakeGate.Host"
         ],
-        "summary": "Export the secret-free singleton profile",
-        "description": "Admin and Viewer. Export is equivalent to safe profile read and cannot bypass validation on later import.",
+        "summary": "Export the portable, secret-free Profile and Policy configuration",
+        "description": "Exports the current draft when present, otherwise the authoritative profile. Credentials, integration bindings, runtime state, history, and generated identifiers are excluded.",
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProfileExportResponse"
+                  "$ref": "#/components/schemas/PortableProfileDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/import/validate": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Validate a portable Profile and Policy document without changing state",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortableProfileDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileImportPreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile/import": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "summary": "Atomically replace the portable Profile and Policy configuration",
+        "description": "Complete configured profiles replace the authoritative profile. Incomplete imports replace the persisted draft and retain normal validation errors.",
+        "parameters": [
+          {
+            "name": "expectedProfileRevision",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "expectedDraftRevision",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortableProfileDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileImportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -579,8 +721,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -1724,7 +1866,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -1763,48 +1905,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/diagnostics/runs/{runId}": {
-      "get": {
-        "tags": [
-          "IntakeGate.Host"
-        ],
-        "parameters": [
-          {
-            "name": "runId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/diagnostics/runtime-records": {
-      "get": {
-        "tags": [
-          "IntakeGate.Host"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"
                 }
               }
             }
@@ -2998,63 +3098,6 @@
               "null",
               "string"
             ]
-          }
-        },
-        "additionalProperties": false
-      },
-      "AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring": {
-        "required": [
-          "id",
-          "instanceId",
-          "startedAtUtc",
-          "applicationVersion"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "instanceId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "startedAtUtc": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "applicationVersion": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        },
-        "additionalProperties": false
-      },
-      "AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring": {
-        "required": [
-          "count",
-          "records"
-        ],
-        "type": "object",
-        "properties": {
-          "count": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "records": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"
-            }
           }
         },
         "additionalProperties": false
@@ -5786,6 +5829,127 @@
         },
         "additionalProperties": false
       },
+      "PortableProfile": {
+        "required": [
+          "profileVersion",
+          "policyUrl",
+          "intakeState",
+          "aiRuntime",
+          "schedule",
+          "processing",
+          "audit",
+          "exclusions"
+        ],
+        "type": "object",
+        "properties": {
+          "profileVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "intakeState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingIntakeState"
+              }
+            ]
+          },
+          "aiRuntime": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingAiRuntime"
+              }
+            ]
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingSchedule"
+              }
+            ]
+          },
+          "processing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingProcessing"
+              }
+            ]
+          },
+          "audit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingAudit"
+              }
+            ]
+          },
+          "exclusions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OnboardingExclusion"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortableProfileDocument": {
+        "required": [
+          "format",
+          "version",
+          "exportedAt",
+          "profile",
+          "policy"
+        ],
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PortableProfile"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/OnboardingPolicy"
+          }
+        },
+        "additionalProperties": false
+      },
       "ProcessingRequest": {
         "required": [
           "executionMode",
@@ -5917,18 +6081,72 @@
         },
         "additionalProperties": false
       },
-      "ProfileExportResponse": {
+      "ProfileImportPreviewResponse": {
         "required": [
-          "formatVersion",
-          "profile"
+          "document",
+          "complete",
+          "fieldErrors",
+          "sectionErrors"
         ],
         "type": "object",
         "properties": {
-          "formatVersion": {
-            "type": "string"
+          "document": {
+            "$ref": "#/components/schemas/PortableProfileDocument"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "fieldErrors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "sectionErrors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfileImportResponse": {
+        "required": [
+          "profileReplaced",
+          "profile",
+          "draft"
+        ],
+        "type": "object",
+        "properties": {
+          "profileReplaced": {
+            "type": "boolean"
           },
           "profile": {
-            "$ref": "#/components/schemas/ProfileStateResponse"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileStateResponse"
+              }
+            ]
+          },
+          "draft": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OnboardingDraftStateResponse"
+              }
+            ]
           }
         },
         "additionalProperties": false

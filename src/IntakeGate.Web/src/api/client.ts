@@ -24,6 +24,9 @@ import type {
   OnboardingDraftState,
   OnboardingDraftUpdate,
   ProfileState,
+  PortableProfileDocument,
+  ProfileImportPreview,
+  ProfileImportResult,
   ProfileUpdate,
   RunDetail,
   RunExecution,
@@ -216,6 +219,22 @@ export class ApiClient {
 
   public updateProfile(body: ProfileUpdate): Promise<ProfileState> {
     return this.request('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  public exportProfile(): Promise<PortableProfileDocument> {
+    return this.request('/api/profile/export');
+  }
+
+  public validateProfileImport(document: unknown): Promise<ProfileImportPreview> {
+    return this.request('/api/profile/import/validate', { method: 'POST', body: JSON.stringify(document) });
+  }
+
+  public importProfile(document: PortableProfileDocument, expectedProfileRevision: string | null,
+    expectedDraftRevision: number | null): Promise<ProfileImportResult> {
+    const query = new URLSearchParams();
+    if (expectedProfileRevision) query.set('expectedProfileRevision', expectedProfileRevision);
+    if (expectedDraftRevision != null) query.set('expectedDraftRevision', String(expectedDraftRevision));
+    return this.request(`/api/profile/import?${query.toString()}`, { method: 'POST', body: JSON.stringify(document) });
   }
 
   public getVersion(signal?: AbortSignal): Promise<VersionInfo> {

@@ -86,6 +86,13 @@ public interface IOnboardingProfileDraftRepository
         AuditActor actor,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken = default);
+
+    Task<OnboardingDraftPersistenceResult> ReplaceForImportAsync(
+        int? expectedRevision,
+        OnboardingProfileDraftValues values,
+        AuditActor actor,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IScheduleConfigurationValidator
@@ -208,6 +215,21 @@ public sealed class OnboardingSetupService(
         return await drafts.UpdateAsync(expectedRevision, Normalize(values), actor,
             clock.UtcNow.ToUniversalTime(), cancellationToken);
     }
+
+    public async Task<OnboardingDraftPersistenceResult> ImportDraftAsync(
+        int? expectedRevision,
+        OnboardingProfileDraftValues values,
+        AuditActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsSupportedDraft(values))
+            return new(OnboardingDraftPersistenceStatus.InvalidConfiguration,
+                ValidationErrors: ValidateDraft(values));
+        return await drafts.ReplaceForImportAsync(expectedRevision, Normalize(values), actor,
+            clock.UtcNow.ToUniversalTime(), cancellationToken);
+    }
+
+    public bool IsPortableStructureSupported(OnboardingProfileDraftValues values) => IsSupportedDraft(values);
 
     public async Task<SetupFinalizationResult> FinalizeAsync(
         int expectedDraftRevision,

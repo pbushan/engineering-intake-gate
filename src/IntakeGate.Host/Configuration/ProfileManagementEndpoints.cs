@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Cronos;
 using IntakeGate.Application.Audit;
 using IntakeGate.Application.Configuration;
@@ -14,6 +16,11 @@ namespace IntakeGate.Host.Configuration;
 public static class ProfileManagementEndpoints
 {
     private const int MaximumLegacyDocumentCharacters = 262_144;
+    private const int MaximumPortableDocumentCharacters = 524_288;
+    private static readonly JsonSerializerOptions PortableJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+    };
 
     public static void MapProfileManagementEndpoints(this WebApplication app)
     {
@@ -116,21 +123,92 @@ public static class ProfileManagementEndpoints
 
         app.MapGet("/api/profile/export", async (
                 ProfileManagementService profiles,
+                OnboardingSetupService onboarding,
+                IClock clock,
+                CancellationToken cancellationToken) =>
+            {
+                var draft = await onboarding.GetDraftAsync(cancellationToken);
+                var snapshot = await profiles.GetAsync(cancellationToken);
+                var exportedAt = clock.UtcNow.ToUniversalTime();
+                if (draft is not null) return Results.Ok(ProfilePortability.Export(draft.Values, exportedAt));
+                if (snapshot is not null) return Results.Ok(ProfilePortability.Export(snapshot.Configuration, exportedAt));
+                return Results.Ok(ProfilePortability.Export(onboarding.GetDefaults().Values, exportedAt));
+            })
+            .RequireAuthorization(LocalAuthPolicies.Authenticated)
+            .WithSummary("Export the portable, secret-free Profile and Policy configuration")
+            .WithDescription("Exports the current draft when present, otherwise the authoritative profile. Credentials, integration bindings, runtime state, history, and generated identifiers are excluded.")
+            .Produces<PortableProfileDocument>()
+            .Produces<ApiErrorResponse>(StatusCodes.Status401Unauthorized)
+            .Produces<ApiErrorResponse>(StatusCodes.Status403Forbidden);
+
+        app.MapPost("/api/profile/import/validate", async (
+                HttpRequest request,
+                OnboardingSetupService onboarding,
+                CancellationToken cancellationToken) =>
+            {
+                var parsed = await ReadPortableDocumentAsync(request, cancellationToken);
+                if (parsed.Error is not null) return parsed.Error;
+                var values = ProfilePortability.ToDraft(parsed.Document!);
+                if (!onboarding.IsPortableStructureSupported(values)) return InvalidPortableValues();
+                var validation = onboarding.ValidateDraft(values);
+                return Results.Ok(new ProfileImportPreviewResponse(parsed.Document!, validation.IsEmpty,
+                    validation.FieldErrors, validation.SectionErrors));
+            })
+            .RequireAuthorization(LocalAuthPolicies.Admin)
+            .RequireApiAntiforgery()
+            .WithSummary("Validate a portable Profile and Policy document without changing state")
+            .Accepts<PortableProfileDocument>("application/json")
+            .Produces<ProfileImportPreviewResponse>()
+            .Produces<ApiErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ApiErrorResponse>(StatusCodes.Status401Unauthorized)
+            .Produces<ApiErrorResponse>(StatusCodes.Status403Forbidden);
+
+        app.MapPost("/api/profile/import", async (
+                HttpRequest request,
+                string? expectedProfileRevision,
+                int? expectedDraftRevision,
+                ClaimsPrincipal principal,
+                ProfileManagementService profiles,
+                OnboardingSetupService onboarding,
                 DeploymentConfigurationState runtime,
                 CancellationToken cancellationToken) =>
             {
-                var snapshot = await profiles.GetAsync(cancellationToken);
-                return snapshot is null
-                    ? Results.NotFound(new ApiErrorResponse("ProfileNotConfigured", "No deployment profile is configured."))
-                    : Results.Ok(new ProfileExportResponse("intake-gate-profile-export-v1", ToState(snapshot, runtime)));
+                var parsed = await ReadPortableDocumentAsync(request, cancellationToken);
+                if (parsed.Error is not null) return parsed.Error;
+                var values = ProfilePortability.ToDraft(parsed.Document!);
+                if (!onboarding.IsPortableStructureSupported(values)) return InvalidPortableValues();
+                var validation = onboarding.ValidateDraft(values);
+                var current = await profiles.GetAsync(cancellationToken);
+                if (current is not null && validation.IsEmpty &&
+                    onboarding.TryBuildEditable(values, out var editable) && editable is not null)
+                {
+                    var result = await profiles.UpdateAsync(expectedProfileRevision, editable,
+                        CurrentActor(principal), cancellationToken);
+                    return result.Status == ProfileManagementStatus.Succeeded
+                        ? Results.Ok(new ProfileImportResponse(true, ToState(result.Snapshot, runtime), null))
+                        : MutationResult(result, runtime, created: false);
+                }
+                var draftResult = await onboarding.ImportDraftAsync(expectedDraftRevision, values,
+                    CurrentActor(principal), cancellationToken);
+                return draftResult.Status switch
+                {
+                    OnboardingDraftPersistenceStatus.Succeeded => Results.Ok(new ProfileImportResponse(false, null,
+                        ToDraftState(draftResult.Draft, onboarding))),
+                    OnboardingDraftPersistenceStatus.InvalidConfiguration => InvalidPortableValues(),
+                    _ => Results.Conflict(new ApiErrorResponse("ProfileImportConflict",
+                        "The Profile & Policy configuration changed after validation. Reload it and try again."))
+                };
             })
-            .RequireAuthorization(LocalAuthPolicies.Authenticated)
-            .WithSummary("Export the secret-free singleton profile")
-            .WithDescription("Admin and Viewer. Export is equivalent to safe profile read and cannot bypass validation on later import.")
-            .Produces<ProfileExportResponse>()
+            .RequireAuthorization(LocalAuthPolicies.Admin)
+            .RequireApiAntiforgery()
+            .WithSummary("Atomically replace the portable Profile and Policy configuration")
+            .WithDescription("Complete configured profiles replace the authoritative profile. Incomplete imports replace the persisted draft and retain normal validation errors.")
+            .Accepts<PortableProfileDocument>("application/json")
+            .Produces<ProfileImportResponse>()
+            .Produces<ApiErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ApiErrorResponse>(StatusCodes.Status401Unauthorized)
             .Produces<ApiErrorResponse>(StatusCodes.Status403Forbidden)
-            .Produces<ApiErrorResponse>(StatusCodes.Status404NotFound);
+            .Produces<ApiErrorResponse>(StatusCodes.Status409Conflict);
 
         app.MapGet("/api/setup/status", async (
                 SetupStateService setup,
@@ -516,6 +594,57 @@ public static class ProfileManagementEndpoints
     private static IResult InvalidImport() => Results.BadRequest(new ApiErrorResponse(
         "InvalidLegacyImport", "Supply valid, secret-free profile and policy YAML content within the documented size limit."));
 
+    private static IResult InvalidPortableValues() => Results.BadRequest(new ApiErrorResponse(
+        "InvalidProfileImport", "The selected file contains invalid Profile & Policy values or malformed nested data."));
+
+    private static async Task<(PortableProfileDocument? Document, IResult? Error)> ReadPortableDocumentAsync(
+        HttpRequest request, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(request.Body);
+        var content = await reader.ReadToEndAsync(cancellationToken);
+        if (content.Length == 0 || content.Length > MaximumPortableDocumentCharacters)
+            return (null, InvalidPortableJson());
+        try
+        {
+            using var json = JsonDocument.Parse(content, new JsonDocumentOptions { MaxDepth = 32 });
+            if (json.RootElement.ValueKind != JsonValueKind.Object) return (null, InvalidPortableJson());
+            var root = json.RootElement;
+            if (!root.TryGetProperty("format", out var format)) return (null, MissingPortableProperty("format"));
+            if (format.ValueKind != JsonValueKind.String ||
+                !string.Equals(format.GetString(), ProfilePortability.Format, StringComparison.Ordinal))
+                return (null, Results.BadRequest(new ApiErrorResponse("WrongProfileFormat",
+                    "This file is not an Engineering Intake Gate profile.")));
+            if (!root.TryGetProperty("version", out var version)) return (null, MissingPortableProperty("version"));
+            if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var versionValue))
+                return (null, InvalidPortableJson());
+            if (versionValue > ProfilePortability.Version)
+                return (null, Results.BadRequest(new ApiErrorResponse("NewerProfileVersion",
+                    "This profile was created by a newer version of Engineering Intake Gate and cannot be imported by this version.")));
+            if (versionValue != ProfilePortability.Version)
+                return (null, Results.BadRequest(new ApiErrorResponse("UnsupportedProfileVersion",
+                    "This profile version is not supported by this version of Engineering Intake Gate.")));
+            if (!root.TryGetProperty("exportedAt", out _)) return (null, MissingPortableProperty("exportedAt"));
+            if (!root.TryGetProperty("profile", out var profile) || profile.ValueKind != JsonValueKind.Object)
+                return (null, MissingPortableProperty("profile"));
+            if (!root.TryGetProperty("policy", out var policy) || policy.ValueKind != JsonValueKind.Object)
+                return (null, MissingPortableProperty("policy"));
+            var document = JsonSerializer.Deserialize<PortableProfileDocument>(content, PortableJsonOptions);
+            return document is null || document.Profile is null || document.Policy is null
+                ? (null, InvalidPortableJson())
+                : (document, null);
+        }
+        catch (Exception exception) when (exception is JsonException or FormatException)
+        {
+            return (null, InvalidPortableJson());
+        }
+    }
+
+    private static IResult InvalidPortableJson() => Results.BadRequest(new ApiErrorResponse(
+        "InvalidProfileFile", "The selected file is not a valid Engineering Intake Gate profile."));
+
+    private static IResult MissingPortableProperty(string property) => Results.BadRequest(new ApiErrorResponse(
+        "MissingProfileProperty", $"The selected profile is missing the required '{property}' property."));
+
     private static IResult InvalidDraft(InputValidationErrors? validationErrors = null) =>
         Results.BadRequest(new ApiErrorResponse(
             "ValidationFailed", "Some profile and policy fields need attention.",
@@ -606,7 +735,11 @@ public sealed record ProfileActivationResponse(bool RuntimeActivationCurrent, bo
     public long? GenerationId { get; init; }
     public string Status { get; init; } = "noActiveGeneration";
 }
-public sealed record ProfileExportResponse(string FormatVersion, ProfileStateResponse Profile);
+public sealed record ProfileImportPreviewResponse(PortableProfileDocument Document, bool Complete,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> FieldErrors,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> SectionErrors);
+public sealed record ProfileImportResponse(bool ProfileReplaced, ProfileStateResponse? Profile,
+    OnboardingDraftStateResponse? Draft);
 public sealed record SetupStatusResponse(
     bool InfrastructureReady,
     bool AdminConfigured,

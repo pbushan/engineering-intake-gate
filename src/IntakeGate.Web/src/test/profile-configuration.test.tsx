@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { apiClient } from '../api/client';
-import { adminUser, completeSetup, editableProfileState, installMockBackend, viewerUser } from './mockBackend';
+import { adminUser, completeDraft, completeSetup, editableProfileState, installMockBackend, viewerUser } from './mockBackend';
 
 const renderAt = (path: string) => {
   window.history.replaceState({}, '', path);
@@ -73,6 +73,60 @@ describe('Profile / Configuration editing', () => {
     expect(screen.getByLabelText(/^Input per million tokens/)).toHaveValue(2.5);
     expect(document.body.textContent).not.toContain('correct-horse-battery');
     expect(document.body.textContent).not.toContain('ciphertext');
+  }, 15_000);
+
+  it('exports a portable JSON file and requires confirmation before import replacement', async () => {
+    const backend = installMockBackend({ user: adminUser, setup: completeSetup, profile: editableProfileState });
+    const createObjectURL = vi.fn(() => 'blob:profile-export');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    renderAt('/configuration');
+    expect(await screen.findByRole('button', { name: 'Import Profile' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Export Profile' })).toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Export Profile' }));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalledOnce());
+    expect(anchorClick).toHaveBeenCalledOnce();
+    expect(await screen.findByText('Profile & Policy configuration exported.')).toBeVisible();
+
+    const exported = {
+      format: 'engineering-intake-gate-profile', version: 1, exportedAt: '2026-09-18T12:00:00Z',
+      profile: { ...completeDraft.values, policy: undefined, audit: { retentionDays: 120 } },
+      policy: completeDraft.values!.policy,
+    };
+    const input = screen.getByLabelText('Choose Profile JSON file');
+    await userEvent.upload(input, new File([JSON.stringify(exported)], 'profile.json', { type: 'application/json' }));
+    expect(await screen.findByRole('dialog', { name: 'Replace Profile & Policy configuration?' })).toBeVisible();
+    expect(backend.calls.some((call) => call.path.startsWith('/api/profile/import?'))).toBe(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(backend.state.profile.configurationRevision).toBe('sha256:deterministic');
+
+    await userEvent.upload(input, new File([JSON.stringify(exported)], 'profile.json', { type: 'application/json' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Import' }));
+    expect(await screen.findByText('Profile & Policy configuration imported successfully.')).toBeVisible();
+    expect(backend.state.profile.configurationRevision).toBe('sha256:imported');
+    expect(backend.state.profile.audit?.retentionDays).toBe(120);
+  }, 15_000);
+
+  it('rejects malformed files and imports incomplete profiles into validation', async () => {
+    installMockBackend({ user: adminUser, setup: completeSetup, profile: editableProfileState });
+    renderAt('/configuration');
+    const input = await screen.findByLabelText('Choose Profile JSON file');
+    await userEvent.upload(input, new File(['{not json'], 'broken.json', { type: 'application/json' }));
+    expect(await screen.findByText('The selected file is not a valid Engineering Intake Gate profile.')).toBeVisible();
+
+    const incomplete = {
+      format: 'engineering-intake-gate-profile', version: 1, exportedAt: '2026-09-18T12:00:00Z',
+      profile: { ...completeDraft.values, policy: undefined, policyUrl: null },
+      policy: { id: null, version: null, criteria: null },
+    };
+    await userEvent.upload(input, new File([JSON.stringify(incomplete)], 'incomplete.json', { type: 'application/json' }));
+    expect(await screen.findByText(/This profile is incomplete/)).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Import' }));
+    expect(await screen.findByText('Profile imported. Complete the missing Profile & Policy information before activation.')).toBeVisible();
+    expect(screen.getByText('Policy URL')).toBeVisible();
   }, 15_000);
 
   it('saves edited criteria with the current profile revision and protects unsaved changes', async () => {

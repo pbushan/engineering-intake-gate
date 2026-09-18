@@ -63,7 +63,7 @@ profile_status=$(curl --silent --output /dev/null --write-out '%{http_code}' --c
 curl --fail --silent --show-error --cookie "$auth_cookie_jar" \
     http://127.0.0.1:8080/api/profile | grep '"exists":false' >/dev/null
 curl --fail --silent --show-error --cookie "$auth_cookie_jar" \
-    http://127.0.0.1:8080/api/version | grep '"version":"2026.9.2"' >/dev/null
+    http://127.0.0.1:8080/api/version | grep '"version":"2026.9.3"' >/dev/null
 
 missing_csrf_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
     --cookie "$auth_cookie_jar" --header 'Content-Type: application/json' --data '{}' \

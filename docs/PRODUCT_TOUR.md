@@ -1,6 +1,6 @@
 # Product Tour
 
-This tour uses the real `2026.9.2` application rendered against deterministic, organization-neutral test providers. Every identity, project, query, ticket, and credential shown is synthetic.
+This tour uses the real `2026.9.3` application rendered against deterministic, organization-neutral test providers. Every identity, project, query, ticket, and credential shown is synthetic.
 
 ## Bootstrap and login
 
@@ -47,6 +47,10 @@ This tour uses the real `2026.9.2` application rendered against deterministic, o
 **Purpose:** define what evidence Engineering needs to begin investigation.
 
 **Key controls:** policy URL/version, Engineering Ready and Intake Incomplete tags, criteria, applicability/N/A rules, guidance, processing limits, retries, concurrency, AI timeout, exclusions, and retention.
+
+Use **Export Profile** to download the current Profile & Policy settings as a portable, secret-free JSON file. Use **Import Profile** to select a previously exported file, review the replacement warning, and confirm a full replacement. Imports never merge fields. Incomplete profiles are accepted into the persisted draft and the normal validation summary identifies what remains required.
+
+The portable envelope is versioned (`format: engineering-intake-gate-profile`, `version: 1`) and contains separate `profile` and `policy` objects plus an ISO-8601 `exportedAt` timestamp. Credentials, API keys, generated profile IDs, runtime state, history, caches, and machine-specific data are not exported.
 
 **Typical workflow:** initialize server defaults, supply organization-neutral criteria, tune bounded evidence/attachment limits, and save the revisioned draft.
 

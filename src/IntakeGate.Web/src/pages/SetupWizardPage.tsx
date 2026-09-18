@@ -3,11 +3,13 @@ import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
+import DownloadRounded from '@mui/icons-material/DownloadRounded';
 import EditOutlined from '@mui/icons-material/EditOutlined';
 import InfoOutlined from '@mui/icons-material/InfoOutlined';
 import RefreshRounded from '@mui/icons-material/RefreshRounded';
 import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import SecurityRounded from '@mui/icons-material/SecurityRounded';
+import UploadFileRounded from '@mui/icons-material/UploadFileRounded';
 import {
   Accordion,
   AccordionDetails,
@@ -22,6 +24,11 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControl,
   FormControlLabel,
   FormHelperText,
@@ -64,6 +71,7 @@ import type {
   OnboardingDraftState,
   OnboardingDraftValues,
   ProfileState,
+  ProfileImportPreview,
   SetupStatus,
 } from '../api/contracts';
 import { useApplicationState } from '../state/ApplicationStateContext';
@@ -227,6 +235,7 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const initializeInFlight = useRef(false);
   const draftDirtyRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<WizardData | null>(null);
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -235,6 +244,7 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [draftValues, setDraftValues] = useState<OnboardingDraftValues | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
+  const [importPreview, setImportPreview] = useState<ProfileImportPreview | null>(null);
 
   const [adoOrganization, setAdoOrganization] = useState('');
   const [adoProject, setAdoProject] = useState('');
@@ -255,13 +265,13 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
 
   const fetchData = useCallback(async (): Promise<WizardData> => {
     const [setup, defaults, onboardingDraft, profile, adoCredential, adoSettings, aiSettings, openai, anthropic] = await Promise.all([
-      apiClient.getSetupStatus(), apiClient.getSetupDefaults(), editing ? Promise.resolve(null) : apiClient.getOnboardingDraft(),
+      apiClient.getSetupStatus(), apiClient.getSetupDefaults(), apiClient.getOnboardingDraft(),
       apiClient.getProfile(),
       apiClient.getAzureDevOpsCredential(), apiClient.getAzureDevOpsSettings(), apiClient.getAiSettings(),
       apiClient.getAiCredential('openai'), apiClient.getAiCredential('anthropic'),
     ]);
     if (editing && !profile.exists) throw setupError('Complete initial setup before editing the profile.');
-    const draft = editing ? profileDraft(profile) : onboardingDraft!;
+    const draft = editing ? (onboardingDraft.exists ? onboardingDraft : profileDraft(profile)) : onboardingDraft;
     return { setup, defaults, draft, profile, adoCredential, adoSettings, aiSettings, aiCredentials: { openai, anthropic } };
   }, [editing]);
 
@@ -386,7 +396,7 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
     try {
       const saved = editing
         ? await apiClient.updateProfile({
-            expectedRevision: String(data.draft.revision),
+            expectedRevision: String(data.profile.configurationRevision),
             profile: draftValues,
           })
         : await apiClient.updateOnboardingDraft({ expectedRevision: data.draft.revision, values: draftValues });
@@ -463,6 +473,66 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
     }
   };
 
+  const exportProfile = () => void action('export-profile', async () => {
+    const document = await apiClient.exportProfile();
+    const blob = new Blob([`${JSON.stringify(document, null, 2)}\n`], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = window.document.createElement('a');
+    anchor.href = url;
+    anchor.download = `engineering-intake-profile-${document.exportedAt.slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    return 'Profile & Policy configuration exported.';
+  });
+
+  const selectImport = async (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    setNotice(null);
+    setBusy('validate-import');
+    try {
+      if (!file.name.toLowerCase().endsWith('.json') || file.size > 524_288)
+        throw new ApiError('validation', 'Select an Engineering Intake Gate .json profile file smaller than 512 KB.', { code: 'InvalidProfileFile' });
+      let parsed: unknown;
+      try { parsed = JSON.parse(await file.text()); }
+      catch { throw new ApiError('validation', 'The selected file is not a valid Engineering Intake Gate profile.', { code: 'InvalidProfileFile' }); }
+      setImportPreview(await apiClient.validateProfileImport(parsed));
+    } catch (reason) {
+      setError(asApiError(reason));
+      headingRef.current?.focus();
+    } finally {
+      setBusy(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const confirmImport = () => void action('import-profile', async () => {
+    if (!importPreview || !data) return;
+    const expectedDraftRevision = data.draft.exists && typeof data.draft.revision === 'number'
+      ? data.draft.revision : null;
+    const result = await apiClient.importProfile(importPreview.document,
+      data.profile.configurationRevision ?? null, expectedDraftRevision);
+    setImportPreview(null);
+    if (result.draft?.values) {
+      setData((current) => current ? { ...current, draft: result.draft! } : current);
+      setDraftValues(cloneDraft(result.draft.values));
+      setDraftDirty(false);
+      draftDirtyRef.current = false;
+      setActiveStep(4);
+      if (!importPreview.complete) {
+        setError(new ApiError('validation', 'Profile imported. Complete the missing Profile & Policy information before activation.', {
+          code: 'ImportedProfileIncomplete', fieldErrors: importPreview.fieldErrors,
+          sectionErrors: importPreview.sectionErrors,
+        }));
+        return 'Profile imported. Complete the missing Profile & Policy information before activation.';
+      }
+    } else {
+      await refresh(true);
+      await application.reload();
+    }
+    return 'Profile & Policy configuration imported successfully.';
+  });
+
   if (loading) return <Stack role="status" aria-live="polite" sx={{ minHeight: 360, alignItems: 'center', justifyContent: 'center' }}><CircularProgress aria-label="Loading setup wizard" /><Typography color="text.secondary" sx={{ mt: 2 }}>Loading authoritative setup state…</Typography></Stack>;
   if (!data) return <Alert severity="error"><AlertTitle>Setup could not be loaded</AlertTitle>{error?.message ?? 'Try again.'}<Button onClick={() => window.location.reload()}>Reload</Button></Alert>;
 
@@ -480,7 +550,30 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
         <Typography ref={headingRef} tabIndex={-1} component="h1" variant="h1">{editing ? 'Edit profile and configuration' : 'Set up Engineering Intake Gate'}</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 760 }}>{editing ? 'Review and update the persisted singleton profile using the same guarded workflow as initial setup. Existing values remain unchanged unless you edit and save them.' : 'Connect the services and define the intake evidence your team needs. Saved progress comes from the backend, so this wizard can safely resume after a refresh.'}</Typography>
         <Link component={RouterLink} to="/help" sx={{ display: 'inline-block', mt: 1 }}>Open setup help</Link>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2 }}>
+          <Button variant="outlined" startIcon={<UploadFileRounded />} disabled={busy !== null}
+            onClick={() => fileInputRef.current?.click()}>Import Profile</Button>
+          <input ref={fileInputRef} hidden type="file" accept="application/json,.json"
+            aria-label="Choose Profile JSON file" onChange={(event) => void selectImport(event.target.files?.[0])} />
+          <Button variant="outlined" startIcon={<DownloadRounded />} disabled={busy !== null}
+            onClick={exportProfile}>{busy === 'export-profile' ? 'Exporting…' : 'Export Profile'}</Button>
+        </Stack>
       </Box>
+
+      <Dialog open={importPreview !== null} onClose={() => setImportPreview(null)}
+        aria-labelledby="profile-import-title" aria-describedby="profile-import-description">
+        <DialogTitle id="profile-import-title">Replace Profile &amp; Policy configuration?</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="profile-import-description">
+            Importing replaces the complete portable Profile &amp; Policy configuration. Credentials, integration settings,
+            runtime history, and secrets are not changed. {importPreview?.complete ? '' : 'This profile is incomplete; it will be imported and the missing fields will be highlighted.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportPreview(null)} autoFocus>Cancel</Button>
+          <Button variant="contained" onClick={confirmImport}>Import</Button>
+        </DialogActions>
+      </Dialog>
 
       <Alert severity="success" icon={<SecurityRounded />}><AlertTitle>Controlled Dry Run</AlertTitle>No Azure DevOps modifications will be made. Production activation is not enabled in this release.</Alert>
 
