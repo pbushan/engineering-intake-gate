@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:18080/"
+      "url": "http://127.0.0.1:18082/"
     }
   ],
   "paths": {
@@ -1912,6 +1912,48 @@
         }
       }
     },
+    "/api/diagnostics/runs/{runId}": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/diagnostics/runtime-records": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ado/credential": {
       "get": {
         "tags": [
@@ -2655,84 +2697,6 @@
         }
       }
     },
-    "/api/ai/pricing": {
-      "get": {
-        "tags": [
-          "IntakeGate.Host"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AiModelPricingResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai/pricing/refresh": {
-      "post": {
-        "tags": [
-          "IntakeGate.Host"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AiModelPricingResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/ai/settings": {
       "get": {
         "tags": [
@@ -2843,6 +2807,84 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConfirmAiModelResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/pricing": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModelPricingResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/pricing/refresh": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModelPricingResponse"
                 }
               }
             }
@@ -2976,6 +3018,207 @@
         },
         "additionalProperties": false
       },
+      "AiModelPricingResponse": {
+        "required": [
+          "provider",
+          "model",
+          "available",
+          "stale",
+          "refreshFailed",
+          "inputPerMillionTokens",
+          "cachedInputPerMillionTokens",
+          "outputPerMillionTokens",
+          "currency",
+          "source",
+          "sourceUri",
+          "catalogVersion",
+          "effectiveAtUtc",
+          "lastVerifiedAtUtc",
+          "expiresAtUtc",
+          "sourceKind"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "refreshFailed": {
+            "type": "boolean"
+          },
+          "inputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "cachedInputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "outputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceUri": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "catalogVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effectiveAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastVerifiedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "expiresAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sourceKind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiObservabilityResponse": {
+        "required": [
+          "configuredProvider",
+          "configuredModel",
+          "providerReportedModel",
+          "promptVersion",
+          "runInteractions",
+          "attachmentArtifactsReused",
+          "attachmentArtifactsRegenerated",
+          "evaluationReused",
+          "originEvaluationId",
+          "originRunId",
+          "executionMode"
+        ],
+        "type": "object",
+        "properties": {
+          "configuredProvider": {
+            "type": "string"
+          },
+          "configuredModel": {
+            "type": "string"
+          },
+          "providerReportedModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "promptVersion": {
+            "type": "string"
+          },
+          "runInteractions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "attachmentArtifactsReused": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "attachmentArtifactsRegenerated": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "evaluationReused": {
+            "type": "boolean"
+          },
+          "originEvaluationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "originRunId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "executionMode": {
+            "$ref": "#/components/schemas/AnalysisExecutionMode"
+          },
+          "providerRequestIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "AiProfileResponse": {
         "required": [
           "provider",
@@ -3036,58 +3279,6 @@
         },
         "additionalProperties": false
       },
-      "AiModelPricingResponse": {
-        "required": [
-          "provider",
-          "model",
-          "available",
-          "stale",
-          "refreshFailed",
-          "inputPerMillionTokens",
-          "cachedInputPerMillionTokens",
-          "outputPerMillionTokens",
-          "currency",
-          "source",
-          "sourceUri",
-          "catalogVersion",
-          "effectiveAtUtc",
-          "lastVerifiedAtUtc",
-          "expiresAtUtc",
-          "sourceKind"
-        ],
-        "type": "object",
-        "properties": {
-          "provider": { "type": "string" },
-          "model": { "type": "string" },
-          "available": { "type": "boolean" },
-          "stale": { "type": "boolean" },
-          "refreshFailed": { "type": "boolean" },
-          "inputPerMillionTokens": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": ["null", "number", "string"],
-            "format": "double"
-          },
-          "cachedInputPerMillionTokens": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": ["null", "number", "string"],
-            "format": "double"
-          },
-          "outputPerMillionTokens": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": ["null", "number", "string"],
-            "format": "double"
-          },
-          "currency": { "type": ["null", "string"] },
-          "source": { "type": ["null", "string"] },
-          "sourceUri": { "type": ["null", "string"], "format": "uri" },
-          "catalogVersion": { "type": ["null", "string"] },
-          "effectiveAtUtc": { "type": ["null", "string"], "format": "date-time" },
-          "lastVerifiedAtUtc": { "type": ["null", "string"], "format": "date-time" },
-          "expiresAtUtc": { "type": ["null", "string"], "format": "date-time" },
-          "sourceKind": { "type": ["null", "string"] }
-        },
-        "additionalProperties": false
-      },
       "AiSettingsResponse": {
         "required": [
           "profileConfigured",
@@ -3138,6 +3329,108 @@
         },
         "additionalProperties": false
       },
+      "AnalysisContextResponse": {
+        "required": [
+          "snapshotId",
+          "schemaVersion",
+          "normalizedEvidenceSchemaVersion",
+          "evaluatedRevision",
+          "sourceFields",
+          "humanCommentsIncluded",
+          "humanCommentsAvailable",
+          "generatedCommentsExcluded",
+          "attachmentCount",
+          "truncationOccurred",
+          "redactionOccurred",
+          "redactionCount",
+          "processingWarnings",
+          "expiresAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "snapshotId": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "normalizedEvidenceSchemaVersion": {
+            "type": "string"
+          },
+          "evaluatedRevision": {
+            "type": "string"
+          },
+          "sourceFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "humanCommentsIncluded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "humanCommentsAvailable": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "generatedCommentsExcluded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "attachmentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncationOccurred": {
+            "type": "boolean"
+          },
+          "redactionOccurred": {
+            "type": "boolean"
+          },
+          "redactionCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "processingWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnalysisExecutionMode": {
+        "enum": [
+          "normalReuseEligible",
+          "forceFresh"
+        ]
+      },
       "AnalyzeWorkItemRequest": {
         "required": [
           "workItemId",
@@ -3159,6 +3452,10 @@
               "null",
               "string"
             ]
+          },
+          "forceFresh": {
+            "type": "boolean",
+            "default": false
           }
         },
         "additionalProperties": false
@@ -3228,6 +3525,63 @@
               "null",
               "string"
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring": {
+        "required": [
+          "id",
+          "instanceId",
+          "startedAtUtc",
+          "applicationVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "applicationVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring": {
+        "required": [
+          "count",
+          "records"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "records": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"
+            }
           }
         },
         "additionalProperties": false
@@ -3319,6 +3673,15 @@
           }
         },
         "additionalProperties": false
+      },
+      "AttachmentInspectionMode": {
+        "enum": [
+          "text",
+          "structuredText",
+          "pdfText",
+          "image",
+          "none"
+        ]
       },
       "AttachmentLimitsRequest": {
         "required": [
@@ -3488,6 +3851,120 @@
         },
         "additionalProperties": false
       },
+      "AttachmentProcessingResponse": {
+        "required": [
+          "attachmentId",
+          "fileName",
+          "mediaType",
+          "sizeBytes",
+          "status",
+          "inspectionMode",
+          "processorIdentity",
+          "processorVersion",
+          "cacheReused",
+          "truncated",
+          "sampled",
+          "pagesAvailable",
+          "pagesInspected",
+          "failureCategory",
+          "warnings",
+          "normalizedEvidencePreview"
+        ],
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sizeBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AttachmentProcessingStatus"
+          },
+          "inspectionMode": {
+            "$ref": "#/components/schemas/AttachmentInspectionMode"
+          },
+          "processorIdentity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "processorVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cacheReused": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "sampled": {
+            "type": "boolean"
+          },
+          "pagesAvailable": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pagesInspected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failureCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "normalizedEvidencePreview": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AttachmentProcessingStatus": {
+        "enum": [
+          "processed",
+          "partial",
+          "unsupported",
+          "unavailable",
+          "error"
+        ]
+      },
       "AuditActorDisplayType": {
         "enum": [
           "user",
@@ -3533,17 +4010,53 @@
               "string"
             ],
             "format": "int32"
+          },
+          "evidenceRetentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSelectedVideoScreenshots": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         },
         "additionalProperties": false
       },
       "AuditResponse": {
         "required": [
-          "retentionDays"
+          "retentionDays",
+          "evidenceRetentionDays",
+          "maximumSelectedVideoScreenshots"
         ],
         "type": "object",
         "properties": {
           "retentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "evidenceRetentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSelectedVideoScreenshots": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -5272,6 +5785,24 @@
               "string"
             ],
             "format": "int32"
+          },
+          "evidenceRetentionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSelectedVideoScreenshots": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -5849,6 +6380,54 @@
           "completedWithErrors",
           "error"
         ]
+      },
+      "PlannedAdoMutationResponse": {
+        "required": [
+          "planId",
+          "evaluatedRevision",
+          "tagAdditions",
+          "tagRemovals",
+          "exactCommentBody",
+          "futureDerivedAttachmentUploads",
+          "contentFingerprint"
+        ],
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "string"
+          },
+          "evaluatedRevision": {
+            "type": "string"
+          },
+          "tagAdditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tagRemovals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exactCommentBody": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "futureDerivedAttachmentUploads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contentFingerprint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "PolicyCriterionRequest": {
         "required": [
@@ -6952,6 +7531,48 @@
             "items": {
               "$ref": "#/components/schemas/SafeOperationalErrorResponse"
             }
+          },
+          "ticketSummary": {
+            "$ref": "#/components/schemas/StructuredTicketSummaryResponse"
+          },
+          "analysisContext": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AnalysisContextResponse"
+              }
+            ]
+          },
+          "attachmentProcessing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentProcessingResponse"
+            }
+          },
+          "ai": {
+            "$ref": "#/components/schemas/AiObservabilityResponse"
+          },
+          "plannedAdoMutation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlannedAdoMutationResponse"
+              }
+            ]
+          },
+          "reusableEvidenceAvailable": {
+            "type": "boolean"
+          },
+          "reusableEvidenceExpiresAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -7581,6 +8202,77 @@
               "string"
             ],
             "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StructuredTicketSummaryResponse": {
+        "required": [
+          "issueSummary",
+          "expectedBehavior",
+          "actualBehavior",
+          "reproductionSteps",
+          "affectedExamples",
+          "environment",
+          "businessImpact",
+          "attachmentFindings",
+          "investigationWarnings"
+        ],
+        "type": "object",
+        "properties": {
+          "issueSummary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedBehavior": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "actualBehavior": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reproductionSteps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "affectedExamples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "environment": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessImpact": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attachmentFindings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "investigationWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false

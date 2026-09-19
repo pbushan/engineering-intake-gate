@@ -35,7 +35,12 @@ public sealed class ScheduleInput { public bool Enabled { get; init; } public st
 public sealed class ProcessingInput { public string? ExecutionMode { get; init; } public int? Concurrency { get; init; } public int? Retries { get; init; } public ContentLimitsInput? ContentLimits { get; init; } public AttachmentLimitsInput? AttachmentLimits { get; init; } }
 public sealed class ContentLimitsInput { public int? MaximumTotalCharacters { get; init; } public int? MaximumComments { get; init; } public int? MaximumExtractedTextCharacters { get; init; } }
 public sealed class AttachmentLimitsInput { public int? MaximumCount { get; init; } public long? MaximumBytesPerAttachment { get; init; } public long? MaximumAggregateBytes { get; init; } public int? MaximumPdfPages { get; init; } public int? MaximumImageCount { get; init; } public long? MaximumImageBytes { get; init; } public int? MaximumCsvRows { get; init; } public int? MaximumStructuredTextDepth { get; init; } }
-public sealed class AuditInput { public int? RetentionDays { get; init; } }
+public sealed class AuditInput
+{
+    public int? RetentionDays { get; init; }
+    public int? EvidenceRetentionDays { get; init; }
+    public int? MaximumSelectedVideoScreenshots { get; init; }
+}
 public sealed class ExclusionInput { public string? Id { get; init; } public string? Field { get; init; } public string? Operator { get; init; } public List<string>? Values { get; init; } }
 public sealed class CriterionInput { public string? Id { get; init; } public string? DisplayName { get; init; } public string? Description { get; init; } public string? Applicability { get; init; } public NotApplicableInput? Na { get; init; } public string? EvaluationGuidance { get; init; } }
 public sealed class NotApplicableInput { public bool? Allowed { get; init; } public bool? RequiresExplanation { get; init; } }

@@ -4,6 +4,8 @@ using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Evidence;
 using IntakeGate.Application.Evaluation;
 using IntakeGate.Infrastructure.Evidence;
+using IntakeGate.Infrastructure.Persistence;
+using Microsoft.Data.Sqlite;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
@@ -222,6 +224,71 @@ public sealed class AttachmentProcessingTests
         Assert.Equal("UnsupportedAttachmentType", failEvidence.Attachments[0].FailureCategory);
     }
 
+    [Fact]
+    public async Task CACHE_003_AttachmentCacheHitsMissesAndForceFreshAreContentAndProcessorVersionAware()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"attachment-cache-{Guid.NewGuid():N}.db");
+        try
+        {
+            await new SqliteDatabaseMigrator(path).MigrateAsync();
+            var cache = new SqliteAnalysisCacheRepository(path);
+            var processorV1 = new CountingTextProcessor("1");
+            var serviceV1 = new AttachmentProcessingService([processorV1], cache, new SecretRedactor());
+            var now = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+            var options = new EvidencePreparationOptions("https://org", "project", false, now, now.AddDays(30));
+            var original = Attachment("a", "password=filename-secret.txt", "text/plain", "result=ok\npassword=secret-value"u8.ToArray());
+
+            var first = Assert.Single(await serviceV1.ProcessAsync([original], Limits(), 10_000, options));
+            var hit = Assert.Single(await serviceV1.ProcessAsync([original], Limits(), 10_000, options));
+            var changed = Assert.Single(await serviceV1.ProcessAsync(
+                [Attachment("a", "evidence.txt", "text/plain", "result=changed"u8.ToArray())], Limits(), 10_000, options));
+            var fresh = Assert.Single(await serviceV1.ProcessAsync([original], Limits(), 10_000,
+                options with { ForceFresh = true }));
+
+            Assert.False(first.CacheReused);
+            Assert.True(hit.CacheReused);
+            Assert.False(changed.CacheReused);
+            Assert.False(fresh.CacheReused);
+            Assert.Equal(3, processorV1.Calls);
+            Assert.NotEqual(first.ArtifactId, changed.ArtifactId);
+            Assert.DoesNotContain("secret-value", first.ExtractedEvidence, StringComparison.Ordinal);
+            var persisted = await cache.GetAttachmentAsync(first.ArtifactId!, "https://org", "project", now);
+            Assert.NotNull(persisted);
+            Assert.DoesNotContain("secret-value", persisted.NormalizedEvidence, StringComparison.Ordinal);
+            Assert.DoesNotContain("filename-secret", persisted.FileName, StringComparison.Ordinal);
+
+            var processorV2 = new CountingTextProcessor("2");
+            var serviceV2 = new AttachmentProcessingService([processorV2], cache, new SecretRedactor());
+            var versionMiss = Assert.Single(await serviceV2.ProcessAsync([original], Limits(), 10_000, options));
+            Assert.False(versionMiss.CacheReused);
+            Assert.Equal(1, processorV2.Calls);
+            Assert.NotEqual(first.ArtifactId, versionMiss.ArtifactId);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task CACHE_003_CacheWriteFailurePreservesSuccessfulAttachmentEvidence()
+    {
+        var processor = new CountingTextProcessor("1");
+        var service = new AttachmentProcessingService([processor], new FailingAttachmentCache(), new SecretRedactor());
+        var now = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+
+        var result = Assert.Single(await service.ProcessAsync(
+            [Attachment("a", "evidence.txt", "text/plain", "result=useful"u8.ToArray())],
+            Limits(), 10_000, new EvidencePreparationOptions("https://org", "project", false, now, now.AddDays(30))));
+
+        Assert.Equal(AttachmentProcessingStatus.Processed, result.ProcessingStatus);
+        Assert.Equal("result=useful", result.ExtractedEvidence);
+        Assert.Null(result.ArtifactId);
+        Assert.Contains("EvidenceCachePersistenceFailed", result.Warnings);
+        Assert.Equal(1, processor.Calls);
+    }
+
     private static AttachmentProcessingService Service() => new(
         [new TextAttachmentProcessor(), new PdfAttachmentProcessor(), new ImageAttachmentProcessor()]);
 
@@ -249,14 +316,26 @@ public sealed class AttachmentProcessingTests
 
     private static string ValidResponse(EvaluationRequest request, string decision) => JsonSerializer.Serialize(new
     {
-        schemaVersion = "intake-evaluation-v1",
+        schemaVersion = "intake-evaluation-v2",
         evaluationId = request.EvaluationId,
         decision,
         applicableCriteria = new[] { "problem" },
         satisfiedCriteria = decision == "PASS" ? new[] { "problem" } : Array.Empty<string>(),
         deficiencies = decision == "FAIL" ? new object[] { new { criterionId = "problem", reason = "Necessary attachment evidence could not be inspected.", requiredSupportAction = "Provide the evidence in a supported format." } } : Array.Empty<object>(),
         ambiguities = Array.Empty<object>(),
-        engineeringSummary = "Grounded attachment-aware summary."
+        engineeringSummary = "Grounded attachment-aware summary.",
+        ticketSummary = new
+        {
+            issueSummary = "Grounded attachment-aware summary.",
+            expectedBehavior = (string?)null,
+            actualBehavior = (string?)null,
+            reproductionSteps = Array.Empty<string>(),
+            affectedExamples = Array.Empty<string>(),
+            environment = (string?)null,
+            businessImpact = (string?)null,
+            attachmentFindings = Array.Empty<string>(),
+            investigationWarnings = Array.Empty<string>()
+        }
     });
 
     private static byte[] CreatePdf(int pageCount)
@@ -302,6 +381,43 @@ public sealed class AttachmentProcessingTests
     {
         public long? Length => 20;
         public ValueTask<Stream> OpenReadAsync(CancellationToken cancellationToken = default) => throw new IOException("synthetic unavailable");
+    }
+
+    private sealed class CountingTextProcessor(string version) : IAttachmentProcessor
+    {
+        public int Calls { get; private set; }
+        public string ProcessorIdentity => "counting-text";
+        public string ProcessorVersion => version;
+        public bool CanProcess(DetectedAttachment attachment) => attachment.MediaType == "text/plain";
+        public ValueTask<AttachmentProcessorOutput> ProcessAsync(
+            DetectedAttachment attachment,
+            AttachmentLimits limits,
+            int maximumExtractedCharacters,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            var content = Encoding.UTF8.GetString(attachment.Content);
+            return ValueTask.FromResult(new AttachmentProcessorOutput(
+                AttachmentProcessingStatus.Processed, AttachmentInspectionMode.Text,
+                content[..Math.Min(content.Length, maximumExtractedCharacters)],
+                content.Length > maximumExtractedCharacters, false, null, null, null));
+        }
+    }
+
+    private sealed class FailingAttachmentCache : IAnalysisCacheRepository
+    {
+        public Task<AttachmentEvidenceArtifact?> GetAttachmentAsync(string artifactId, string organization, string project, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+            Task.FromResult<AttachmentEvidenceArtifact?>(null);
+        public Task SaveAttachmentAsync(AttachmentEvidenceArtifact artifact, CancellationToken cancellationToken = default) =>
+            throw new IOException("synthetic cache write failure");
+        public Task<ReusableEvaluation?> GetEvaluationAsync(string equivalenceKey, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+            Task.FromResult<ReusableEvaluation?>(null);
+        public Task SaveEvaluationAsync(ReusableEvaluation evaluation, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveContextAsync(AnalysisContextSnapshot context, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<AnalysisContextSnapshot?> GetContextAsync(string snapshotId, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+            Task.FromResult<AnalysisContextSnapshot?>(null);
+        public Task<EvidenceCleanupResult> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new EvidenceCleanupResult(0, 0, 0, 0));
     }
 
     private sealed class NoOpLog : IEvidenceProcessingLog

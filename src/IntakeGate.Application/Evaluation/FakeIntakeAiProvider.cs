@@ -65,13 +65,25 @@ public sealed class FakeIntakeAiProvider : IIntakeAiProvider
         object[] ambiguities,
         string engineeringSummary) => AiProviderResponse.Success(JsonSerializer.Serialize(new
         {
-            schemaVersion = "intake-evaluation-v1",
+            schemaVersion = "intake-evaluation-v2",
             evaluationId = request.EvaluationId,
             decision,
             applicableCriteria,
             satisfiedCriteria,
             deficiencies,
             ambiguities,
-            engineeringSummary
+            engineeringSummary,
+            ticketSummary = new
+            {
+                issueSummary = engineeringSummary,
+                expectedBehavior = (string?)null,
+                actualBehavior = (string?)null,
+                reproductionSteps = Array.Empty<string>(),
+                affectedExamples = Array.Empty<string>(),
+                environment = (string?)null,
+                businessImpact = (string?)null,
+                attachmentFindings = Array.Empty<string>(),
+                investigationWarnings = Array.Empty<string>()
+            }
         }));
 }

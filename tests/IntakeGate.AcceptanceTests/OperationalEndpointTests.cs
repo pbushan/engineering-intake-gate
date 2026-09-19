@@ -104,8 +104,9 @@ public sealed class OperationalEndpointTests
         Assert.Equal(runNowBody.GetProperty("runId").GetGuid(), newest.GetProperty("runId").GetGuid());
         Assert.Equal("acceptance-admin", newest.GetProperty("triggeredBy").GetProperty("username").GetString());
         Assert.Equal(1, newest.GetProperty("engineeringReadyCount").GetInt32());
-        Assert.Equal(11, newest.GetProperty("tokenUsage").GetProperty("totalTokens").GetInt32());
-        Assert.Equal(JsonValueKind.Null, newest.GetProperty("estimatedCost").ValueKind);
+        Assert.Equal(0, newest.GetProperty("tokenUsage").GetProperty("totalTokens").GetInt32());
+        Assert.Equal(0m, newest.GetProperty("estimatedCost").GetProperty("amount").GetDecimal());
+        Assert.Equal(0, newest.GetProperty("estimatedCost").GetProperty("totalInteractions").GetInt32());
 
         var parentId = runNowBody.GetProperty("runId").GetGuid();
         using var detailResponse = await fixture.Viewer.GetAsync($"/api/runs/{parentId:D}");
@@ -125,10 +126,12 @@ public sealed class OperationalEndpointTests
         var itemDetail = JsonDocument.Parse(itemText).RootElement;
         Assert.Equal(2, itemDetail.GetProperty("proposedEffects").GetArrayLength());
         Assert.Equal(0, itemDetail.GetProperty("actualEffects").GetArrayLength());
-        Assert.Equal(11, itemDetail.GetProperty("tokenUsage").GetProperty("totalTokens").GetInt32());
-        Assert.DoesNotContain("description", itemText, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("attachments", itemText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, itemDetail.GetProperty("tokenUsage").GetProperty("totalTokens").GetInt32());
+        Assert.True(itemDetail.GetProperty("ai").GetProperty("evaluationReused").GetBoolean());
+        Assert.True(itemDetail.GetProperty("reusableEvidenceAvailable").GetBoolean());
         Assert.DoesNotContain("structuredPayload", itemText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("contentBytes", itemText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("authorization", itemText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("prompt\"", itemText, StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(HttpStatusCode.NotFound,

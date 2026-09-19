@@ -8,7 +8,7 @@ namespace IntakeGate.Infrastructure.Persistence;
 /// </summary>
 public sealed class SqliteDatabaseMigrator
 {
-    public const int CurrentSchemaVersion = 15;
+    public const int CurrentSchemaVersion = 16;
     public const int PrePhase1ASchemaVersion = 5;
 
     private static readonly IReadOnlyDictionary<int, string> Migrations = new Dictionary<int, string>
@@ -349,6 +349,58 @@ public sealed class SqliteDatabaseMigrator
                 updated_at_utc TEXT NOT NULL,
                 PRIMARY KEY (provider, model_id)
             );
+            """
+        ,
+        [16] = """
+            -- Reusable evidence is intentionally separated from long-lived audit JSON so its
+            -- shorter privacy retention can be enforced deterministically.
+            CREATE TABLE attachment_evidence_artifacts (
+                artifact_id TEXT NOT NULL PRIMARY KEY,
+                organization TEXT NOT NULL,
+                project TEXT NOT NULL,
+                attachment_id TEXT NOT NULL,
+                content_sha256 TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                expires_at_utc TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            );
+            CREATE INDEX ix_attachment_evidence_scope_expiry
+                ON attachment_evidence_artifacts(organization, project, expires_at_utc);
+
+            CREATE TABLE analysis_context_snapshots (
+                snapshot_id TEXT NOT NULL PRIMARY KEY,
+                work_item_id TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                expires_at_utc TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            );
+            CREATE INDEX ix_analysis_context_expiry ON analysis_context_snapshots(expires_at_utc);
+
+            CREATE TABLE reusable_evaluations (
+                equivalence_key TEXT NOT NULL PRIMARY KEY,
+                origin_evaluation_id TEXT NOT NULL,
+                origin_run_id TEXT NOT NULL,
+                created_at_utc TEXT NOT NULL,
+                expires_at_utc TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                FOREIGN KEY(origin_evaluation_id) REFERENCES evaluation_audits(evaluation_id)
+                    ON DELETE CASCADE
+            );
+            CREATE INDEX ix_reusable_evaluations_expiry ON reusable_evaluations(expires_at_utc);
+
+            -- Reserved for PR 2. Only selected key screenshots may be retained; sampled frames
+            -- never enter this table.
+            CREATE TABLE selected_key_screenshot_artifacts (
+                screenshot_id TEXT NOT NULL PRIMARY KEY,
+                source_artifact_id TEXT NOT NULL,
+                expires_at_utc TEXT NOT NULL,
+                storage_reference TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                FOREIGN KEY(source_artifact_id) REFERENCES attachment_evidence_artifacts(artifact_id)
+                    ON DELETE CASCADE
+            );
+            CREATE INDEX ix_selected_screenshots_expiry
+                ON selected_key_screenshot_artifacts(expires_at_utc);
             """
     };
 

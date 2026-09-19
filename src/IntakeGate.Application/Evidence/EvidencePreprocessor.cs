@@ -38,6 +38,20 @@ public sealed class EvidencePreprocessor : IEvidencePreprocessor
         RawWorkItem workItem,
         ProcessingConfiguration processing,
         CancellationToken cancellationToken = default)
+        => await PrepareCoreAsync(workItem, processing, null, cancellationToken);
+
+    public async ValueTask<EvaluationEvidence> PrepareAsync(
+        RawWorkItem workItem,
+        ProcessingConfiguration processing,
+        EvidencePreparationOptions options,
+        CancellationToken cancellationToken = default)
+        => await PrepareCoreAsync(workItem, processing, options, cancellationToken);
+
+    private async ValueTask<EvaluationEvidence> PrepareCoreAsync(
+        RawWorkItem workItem,
+        ProcessingConfiguration processing,
+        EvidencePreparationOptions? options,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(workItem);
         ArgumentNullException.ThrowIfNull(processing);
@@ -57,13 +71,15 @@ public sealed class EvidencePreprocessor : IEvidencePreprocessor
             .ThenBy(attachment => attachment.FileName, StringComparer.Ordinal)
             .Take(processing.AttachmentLimits.MaximumCount)
             .ToArray();
-        var processedAttachments = await attachmentProcessingService.ProcessAsync(
-            selectedAttachments,
-            processing.AttachmentLimits,
-            processing.ContentLimits.MaximumExtractedTextCharacters,
-            cancellationToken);
+        var processedAttachments = options is not null && attachmentProcessingService is ICacheAwareAttachmentProcessingService cacheAware
+            ? await cacheAware.ProcessAsync(selectedAttachments, processing.AttachmentLimits,
+                processing.ContentLimits.MaximumExtractedTextCharacters, options, cancellationToken)
+            : await attachmentProcessingService.ProcessAsync(selectedAttachments, processing.AttachmentLimits,
+                processing.ContentLimits.MaximumExtractedTextCharacters, cancellationToken);
 
         var redactions = new RedactionAccumulator();
+        foreach (var processedAttachment in processedAttachments)
+            redactions.Add(processedAttachment.RedactionCategoryCounts);
         var budget = new TextBudget(
             processing.ContentLimits.MaximumTotalCharacters,
             processing.ContentLimits.MaximumExtractedTextCharacters);
@@ -207,7 +223,15 @@ public sealed class EvidencePreprocessor : IEvidencePreprocessor
                 result.PagesAvailable,
                 result.PagesInspected,
                 failureCategory,
-                result.VisualContent is not null));
+                result.VisualContent is not null)
+            {
+                ContentSha256 = result.ContentSha256,
+                ArtifactId = result.ArtifactId,
+                ProcessorIdentity = result.ProcessorIdentity,
+                ProcessorVersion = result.ProcessorVersion,
+                CacheReused = result.CacheReused,
+                Warnings = result.Warnings
+            });
 
             if (result.VisualContent is not null)
             {
@@ -472,6 +496,12 @@ public sealed class EvidencePreprocessor : IEvidencePreprocessor
             {
                 counts[category.Key] = counts.GetValueOrDefault(category.Key) + category.Value;
             }
+        }
+
+        public void Add(IReadOnlyDictionary<string, int> categoryCounts)
+        {
+            foreach (var category in categoryCounts)
+                counts[category.Key] = counts.GetValueOrDefault(category.Key) + category.Value;
         }
 
         public RedactionMetadata ToMetadata() => new(

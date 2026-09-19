@@ -4,6 +4,7 @@ using IntakeGate.Application.AzureDevOps;
 using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Discovery;
 using IntakeGate.Application.Evaluation;
+using IntakeGate.Application.Evidence;
 using IntakeGate.Application.WorkItems;
 using IntakeGate.Host.Authentication;
 
@@ -122,7 +123,9 @@ public static class OperationalEndpoints
                     ["workItemIdentity"] = ["Enter a positive work-item ID or a supported Azure DevOps work-item URL for the configured organization and project."]
                 }));
 
-        var result = await ExecuteManualAsync(id, principal, services, capture.Services!, audit, cancellationToken);
+        var result = await ExecuteManualAsync(id, principal, services, capture.Services!, audit,
+            request.ForceFresh ? AnalysisExecutionMode.ForceFresh : AnalysisExecutionMode.NormalReuseEligible,
+            cancellationToken);
         if (result.Error is not null) return result.Error;
         var run = result.Result!;
         var decision = Decision(run);
@@ -154,7 +157,8 @@ public static class OperationalEndpoints
         if (!configurationState.IsConfigured) return ProfileUnavailable();
         var capture = await runtimeFactory.CaptureAsync(cancellationToken);
         if (!capture.Succeeded) return ConfigurationUnavailable(capture.Failure);
-        var result = await ExecuteManualAsync(id, principal, services, capture.Services!, audit, cancellationToken);
+        var result = await ExecuteManualAsync(id, principal, services, capture.Services!, audit,
+            AnalysisExecutionMode.NormalReuseEligible, cancellationToken);
         return result.Error ?? Results.Ok(result.Result);
     }
 
@@ -164,6 +168,7 @@ public static class OperationalEndpoints
         IServiceProvider services,
         RuntimeExecutionServices execution,
         IControlPlaneAuditWriter audit,
+        AnalysisExecutionMode analysisExecutionMode,
         CancellationToken cancellationToken)
     {
         var actor = CurrentActor(principal);
@@ -183,7 +188,8 @@ public static class OperationalEndpoints
                 "ActiveRunInProgress", "Another run already holds the active profile execution lease.")));
         try
         {
-            var result = await execution.ManualRuns.ExecuteAsync(id, configuration, actor, cancellationToken);
+            var result = await execution.ManualRuns.ExecuteAsync(id, configuration, actor,
+                analysisExecutionMode, cancellationToken);
             await TryAuditAsync(audit, actor, "AnalyzeWorkItemCompleted", "Run", result.RunId.ToString("D"),
                 ["workItemId", "status", "configurationGenerationId"], CancellationToken.None);
             return (result, null);

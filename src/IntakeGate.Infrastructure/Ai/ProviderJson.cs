@@ -14,10 +14,10 @@ internal static class ProviderJson
     {
         type = "object",
         additionalProperties = false,
-        required = new[] { "schemaVersion", "evaluationId", "decision", "applicableCriteria", "satisfiedCriteria", "deficiencies", "ambiguities", "engineeringSummary" },
+        required = new[] { "schemaVersion", "evaluationId", "decision", "applicableCriteria", "satisfiedCriteria", "deficiencies", "ambiguities", "engineeringSummary", "ticketSummary" },
         properties = new
         {
-            schemaVersion = new { type = "string", @enum = new[] { "intake-evaluation-v1" } },
+            schemaVersion = new { type = "string", @enum = new[] { "intake-evaluation-v2" } },
             evaluationId = new { type = "string" },
             decision = new { type = "string", @enum = new[] { "PASS", "FAIL" } },
             applicableCriteria = new { type = "array", items = new { type = "string" } },
@@ -44,7 +44,25 @@ internal static class ProviderJson
                     properties = new { criterionId = new { type = new[] { "string", "null" } }, description = new { type = "string" }, requiredClarification = new { type = "string" } }
                 }
             },
-            engineeringSummary = new { type = "string" }
+            engineeringSummary = new { type = "string" },
+            ticketSummary = new
+            {
+                type = "object",
+                additionalProperties = false,
+                required = new[] { "issueSummary", "expectedBehavior", "actualBehavior", "reproductionSteps", "affectedExamples", "environment", "businessImpact", "attachmentFindings", "investigationWarnings" },
+                properties = new
+                {
+                    issueSummary = new { type = new[] { "string", "null" } },
+                    expectedBehavior = new { type = new[] { "string", "null" } },
+                    actualBehavior = new { type = new[] { "string", "null" } },
+                    reproductionSteps = new { type = "array", items = new { type = "string" } },
+                    affectedExamples = new { type = "array", items = new { type = "string" } },
+                    environment = new { type = new[] { "string", "null" } },
+                    businessImpact = new { type = new[] { "string", "null" } },
+                    attachmentFindings = new { type = "array", items = new { type = "string" } },
+                    investigationWarnings = new { type = "array", items = new { type = "string" } }
+                }
+            }
         }
     };
 

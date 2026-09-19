@@ -78,7 +78,12 @@ public static class DeploymentConfigurationDocuments
                 MaximumStructuredTextDepth = profile.Processing.AttachmentLimits.MaximumStructuredTextDepth
             }
         },
-        Audit = new AuditInput { RetentionDays = profile.Audit.RetentionDays },
+        Audit = new AuditInput
+        {
+            RetentionDays = profile.Audit.RetentionDays,
+            EvidenceRetentionDays = profile.Audit.EvidenceRetentionDays,
+            MaximumSelectedVideoScreenshots = profile.Audit.MaximumSelectedVideoScreenshots
+        },
         Exclusions = profile.Exclusions.Select(item => new ExclusionInput
         {
             Id = item.Id,

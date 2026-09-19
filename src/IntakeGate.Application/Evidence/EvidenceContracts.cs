@@ -11,7 +11,21 @@ public interface IEvidencePreprocessor
         ProcessingConfiguration processing,
         CancellationToken cancellationToken = default) =>
         ValueTask.FromResult(Prepare(workItem, processing));
+
+    ValueTask<EvaluationEvidence> PrepareAsync(
+        RawWorkItem workItem,
+        ProcessingConfiguration processing,
+        EvidencePreparationOptions options,
+        CancellationToken cancellationToken = default) =>
+        PrepareAsync(workItem, processing, cancellationToken);
 }
+
+public sealed record EvidencePreparationOptions(
+    string Organization,
+    string Project,
+    bool ForceFresh,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset ExpiresAtUtc);
 
 public interface IContentNormalizer
 {
@@ -76,8 +90,20 @@ public interface IAttachmentProcessingService
         CancellationToken cancellationToken = default);
 }
 
+public interface ICacheAwareAttachmentProcessingService : IAttachmentProcessingService
+{
+    ValueTask<IReadOnlyList<AttachmentProcessingResult>> ProcessAsync(
+        IReadOnlyList<RawAttachmentMetadata> attachments,
+        AttachmentLimits limits,
+        int maximumExtractedCharacters,
+        EvidencePreparationOptions options,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IAttachmentProcessor
 {
+    string ProcessorIdentity => GetType().Name;
+    string ProcessorVersion => "1";
     bool CanProcess(DetectedAttachment attachment);
     ValueTask<AttachmentProcessorOutput> ProcessAsync(
         DetectedAttachment attachment,
@@ -117,7 +143,16 @@ public sealed record AttachmentProcessingResult(
     int? PagesInspected,
     string? FailureCategory,
     [property: System.Text.Json.Serialization.JsonIgnore] VisualAttachmentContent? VisualContent = null,
-    long ProcessingDurationMilliseconds = 0);
+    long ProcessingDurationMilliseconds = 0)
+{
+    public string? ContentSha256 { get; init; }
+    public string? ArtifactId { get; init; }
+    public string? ProcessorIdentity { get; init; }
+    public string? ProcessorVersion { get; init; }
+    public bool CacheReused { get; init; }
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+    public IReadOnlyDictionary<string, int> RedactionCategoryCounts { get; init; } = new Dictionary<string, int>();
+}
 
 public sealed class VisualAttachmentContent
 {

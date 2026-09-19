@@ -167,6 +167,60 @@ public sealed class IntakeRunServiceTests
     }
 
     [Fact]
+    public async Task CACHE_001_UnchangedNormalRerunReusesEvaluationWithZeroCallsAndZeroNewCost()
+    {
+        var audits = new CapturingAuditRepository();
+        var cache = new RecordingAnalysisCache();
+        var evaluator = new CountingEvaluationService();
+        var service = new IntakeRunService(new StubPreprocessor(), evaluator,
+            new IntakeDecisionHandler(new IntakeCommentRenderer()), audits, new FixedClock(),
+            new NullRunAuditLog(), new StubCostAccounting(), null, null, cache);
+        var workItem = new RawWorkItem("42", "7", "Generic", "Title");
+
+        await service.ExecuteAsync(workItem, Configuration(), RunTriggerType.ManualWorkItem, "fixture");
+        await service.ExecuteAsync(workItem, Configuration(), RunTriggerType.ManualWorkItem, "fixture");
+        await service.ExecuteAsync(new RawWorkItem("42", "8", "Generic", "Title", tags: ["VALID"]),
+            Configuration(), RunTriggerType.ManualWorkItem, "fixture");
+
+        Assert.Equal(1, evaluator.Calls);
+        var reused = audits.Saved[1].Evaluation;
+        Assert.True(reused.EvaluationReused);
+        Assert.Equal(audits.Saved[0].Evaluation.EvaluationId, reused.OriginEvaluationId);
+        Assert.Equal(audits.Saved[0].Run.RunId, reused.OriginRunId);
+        Assert.Equal(new TokenUsage(0, 0, 0), reused.TokenUsage);
+        Assert.Equal(0m, reused.EstimatedCost!.Amount);
+        Assert.Empty(reused.AiInteractions);
+        Assert.True(audits.Saved[2].Evaluation.EvaluationReused);
+        Assert.Equal(audits.Saved[0].Evaluation.EvaluationId, audits.Saved[2].Evaluation.OriginEvaluationId);
+
+        await service.ExecuteAsync(new RawWorkItem("42", "9", "Generic", "Changed title", tags: ["VALID"]),
+            Configuration(), RunTriggerType.ManualWorkItem, "fixture");
+        Assert.Equal(2, evaluator.Calls);
+        Assert.False(audits.Saved[3].Evaluation.EvaluationReused);
+    }
+
+    [Fact]
+    public async Task CACHE_002_ForceFreshBypassesCompleteReuseAndRecordsMode()
+    {
+        var audits = new CapturingAuditRepository();
+        var cache = new RecordingAnalysisCache();
+        var evaluator = new CountingEvaluationService();
+        var service = new IntakeRunService(new StubPreprocessor(), evaluator,
+            new IntakeDecisionHandler(new IntakeCommentRenderer()), audits, new FixedClock(),
+            new NullRunAuditLog(), new StubCostAccounting(), null, null, cache);
+        var workItem = new RawWorkItem("42", "7", "Generic", "Title");
+        await service.ExecuteAsync(workItem, Configuration(), RunTriggerType.ManualWorkItem, "fixture");
+
+        await service.ExecuteAsync(workItem, Configuration(), RunTriggerType.ManualWorkItem, "fixture",
+            Guid.NewGuid(), WorkItemEligibility.Eligible, null, null, AuditActor.System, null,
+            AnalysisExecutionMode.ForceFresh);
+
+        Assert.Equal(2, evaluator.Calls);
+        Assert.False(audits.Saved[1].Evaluation.EvaluationReused);
+        Assert.Equal(AnalysisExecutionMode.ForceFresh, audits.Saved[1].Evaluation.AnalysisExecutionMode);
+    }
+
+    [Fact]
     public async Task SAFE_001_AC_20_E1_StaleRevisionAfterEvaluationCausesZeroWritesAndAuditsRequeue()
     {
         var audit = new LiveAuditRepository();
@@ -278,6 +332,38 @@ public sealed class IntakeRunServiceTests
             Task.FromResult(new EvaluationProcessingResult(EvaluationProcessingStatus.Completed,
                 new EvaluationResult(evaluationId, IntakeDecision.Pass, "policy", "1", "sha256:abc", EvaluatorPrompt.Version,
                     ["problem"], ["problem"], [], [], "Grounded summary.", "fake", "scripted"), null, 1));
+    }
+
+    private sealed class CountingEvaluationService : IIntakeEvaluationService
+    {
+        public int Calls { get; private set; }
+        public Task<EvaluationProcessingResult> EvaluateAsync(EvaluationEvidence evidence, DeploymentConfiguration configuration, CancellationToken cancellationToken = default) =>
+            EvaluateAsync(evidence, configuration, Guid.NewGuid().ToString("D"), cancellationToken);
+        public Task<EvaluationProcessingResult> EvaluateAsync(EvaluationEvidence evidence, DeploymentConfiguration configuration, string evaluationId, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(new EvaluationProcessingResult(EvaluationProcessingStatus.Completed,
+                new EvaluationResult(evaluationId, IntakeDecision.Pass, "policy", "1", "sha256:abc",
+                    EvaluatorPrompt.Version, ["problem"], ["problem"], [], [], "Grounded summary.", "fake", "scripted")
+                { TicketSummary = StructuredTicketSummary.Empty with { IssueSummary = "Grounded summary." } }, null, 1)
+            {
+                TokenUsage = new TokenUsage(10, 2, 12),
+                ProviderInteractions = [new AiProviderInteractionUsage(1, "fake", "scripted", "fake", "scripted", "request", new TokenUsage(10, 2, 12))]
+            });
+        }
+    }
+
+    private sealed class RecordingAnalysisCache : IAnalysisCacheRepository
+    {
+        private readonly Dictionary<string, ReusableEvaluation> evaluations = [];
+        private readonly Dictionary<string, AnalysisContextSnapshot> contexts = [];
+        public Task<AttachmentEvidenceArtifact?> GetAttachmentAsync(string artifactId, string organization, string project, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult<AttachmentEvidenceArtifact?>(null);
+        public Task SaveAttachmentAsync(AttachmentEvidenceArtifact artifact, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<ReusableEvaluation?> GetEvaluationAsync(string equivalenceKey, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(evaluations.GetValueOrDefault(equivalenceKey) is { } item && item.ExpiresAtUtc > nowUtc ? item : null);
+        public Task SaveEvaluationAsync(ReusableEvaluation evaluation, CancellationToken cancellationToken = default) { evaluations[evaluation.EquivalenceKey] = evaluation; return Task.CompletedTask; }
+        public Task SaveContextAsync(AnalysisContextSnapshot context, CancellationToken cancellationToken = default) { contexts[context.SnapshotId] = context; return Task.CompletedTask; }
+        public Task<AnalysisContextSnapshot?> GetContextAsync(string snapshotId, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(contexts.GetValueOrDefault(snapshotId) is { } item && item.ExpiresAtUtc > nowUtc ? item : null);
+        public Task<EvidenceCleanupResult> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(new EvidenceCleanupResult(0, 0, 0, 0));
     }
 
     private sealed class StubCostAccounting : IAiCostAccountingService

@@ -255,7 +255,10 @@ url_item_detail=$(auth_curl --fail --silent --show-error \
 echo "$url_item_detail" | grep '"proposedEffects"' >/dev/null
 echo "$url_item_detail" | grep '"actualEffects":\[\]' >/dev/null
 echo "$url_item_detail" | grep '"azureDevOpsUrl":"http://mock-ado:8081/generic-org/GenericProject/_workitems/edit/101"' >/dev/null
-echo "$url_item_detail" | grep -Eiq 'structuredPayload|providerRequestIds|attachmentProcessing|credential|ciphertext' && {
+echo "$url_item_detail" | grep '"analysisContext"' >/dev/null
+echo "$url_item_detail" | grep '"attachmentProcessing"' >/dev/null
+echo "$url_item_detail" | grep '"plannedAdoMutation"' >/dev/null
+echo "$url_item_detail" | grep -Eiq 'structuredPayload|providerRequestBody|providerResponse|contentBytes|authorization|credential|ciphertext' && {
     echo "Operational item detail exposed prohibited data." >&2
     exit 1
 }

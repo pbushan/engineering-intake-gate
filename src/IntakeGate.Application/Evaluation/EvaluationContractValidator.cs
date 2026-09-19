@@ -1,3 +1,5 @@
+using IntakeGate.Application.Evidence;
+
 namespace IntakeGate.Application.Evaluation;
 
 public sealed class EvaluationContractValidator
@@ -10,7 +12,7 @@ public sealed class EvaluationContractValidator
     {
         result = null;
         failureCategory = "InvalidEvaluationContract";
-        if (!string.Equals(response.SchemaVersion, "intake-evaluation-v1", StringComparison.Ordinal))
+        if (!string.Equals(response.SchemaVersion, AnalysisContextVersions.EvaluationContract, StringComparison.Ordinal))
         {
             failureCategory = "UnsupportedSchemaVersion";
             return false;
@@ -72,7 +74,15 @@ public sealed class EvaluationContractValidator
             request.PromptVersion, response.ApplicableCriteria, response.SatisfiedCriteria,
             response.Deficiencies.Select(item => new EvaluationDeficiency(item.CriterionId, item.Reason, item.RequiredSupportAction)).ToArray(),
             response.Ambiguities.Select(item => new EvaluationAmbiguity(item.CriterionId, item.Description, item.RequiredClarification)).ToArray(),
-            response.EngineeringSummary, request.ProviderIdentifier, request.ModelIdentifier);
+            response.EngineeringSummary, request.ProviderIdentifier, request.ModelIdentifier)
+        {
+            TicketSummary = new StructuredTicketSummary(
+                response.TicketSummary.IssueSummary, response.TicketSummary.ExpectedBehavior,
+                response.TicketSummary.ActualBehavior, response.TicketSummary.ReproductionSteps,
+                response.TicketSummary.AffectedExamples, response.TicketSummary.Environment,
+                response.TicketSummary.BusinessImpact, response.TicketSummary.AttachmentFindings,
+                response.TicketSummary.InvestigationWarnings)
+        };
         return true;
     }
 

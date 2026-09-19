@@ -304,14 +304,26 @@ public sealed class AiProviderAdapterTests
 
     private static string ValidPayload(EvaluationRequest request) => JsonSerializer.Serialize(new
     {
-        schemaVersion = "intake-evaluation-v1",
+        schemaVersion = "intake-evaluation-v2",
         evaluationId = request.EvaluationId,
         decision = "PASS",
         applicableCriteria = new[] { "problem" },
         satisfiedCriteria = new[] { "problem" },
         deficiencies = Array.Empty<object>(),
         ambiguities = Array.Empty<object>(),
-        engineeringSummary = "Grounded summary."
+        engineeringSummary = "Grounded summary.",
+        ticketSummary = new
+        {
+            issueSummary = "Grounded summary.",
+            expectedBehavior = (string?)null,
+            actualBehavior = (string?)null,
+            reproductionSteps = Array.Empty<string>(),
+            affectedExamples = Array.Empty<string>(),
+            environment = (string?)null,
+            businessImpact = (string?)null,
+            attachmentFindings = Array.Empty<string>(),
+            investigationWarnings = Array.Empty<string>()
+        }
     });
 
     private sealed class StubCredentialResolver(string? value) : IProviderCredentialResolver

@@ -29,7 +29,10 @@ public sealed record OnboardingContentLimits(int? MaximumTotalCharacters, int? M
 public sealed record OnboardingAttachmentLimits(int? MaximumCount, long? MaximumBytesPerAttachment,
     long? MaximumAggregateBytes, int? MaximumPdfPages, int? MaximumImageCount,
     long? MaximumImageBytes, int? MaximumCsvRows, int? MaximumStructuredTextDepth);
-public sealed record OnboardingAudit(int? RetentionDays);
+public sealed record OnboardingAudit(
+    int? RetentionDays,
+    int? EvidenceRetentionDays = null,
+    int? MaximumSelectedVideoScreenshots = null);
 public sealed record OnboardingExclusion(string? Id, string? Field, string? Operator,
     IReadOnlyList<string>? Values);
 public sealed record OnboardingPolicy(string? Id, string? Version,
@@ -130,6 +133,8 @@ public static class AuthoritativeOnboardingDefaults
         "processing.attachmentLimits.maximumImageBytes",
         "processing.attachmentLimits.maximumCsvRows",
         "processing.attachmentLimits.maximumStructuredTextDepth",
+        "audit.evidenceRetentionDays",
+        "audit.maximumSelectedVideoScreenshots",
         "exclusions"
     ];
 
@@ -175,7 +180,8 @@ public static class AuthoritativeOnboardingDefaults
                     DeploymentConfigurationDefaults.MaximumImageBytes,
                     DeploymentConfigurationDefaults.MaximumCsvRows,
                     DeploymentConfigurationDefaults.MaximumStructuredTextDepth)),
-            new OnboardingAudit(null),
+            new OnboardingAudit(null, DeploymentConfigurationDefaults.EvidenceRetentionDays,
+                DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots),
             [],
             null),
         ServerSeededFields,
@@ -344,6 +350,10 @@ public sealed class OnboardingSetupService(
             if (value is null) Add(target, key, $"{label} is required.");
             else if (value <= 0) Add(target, key, $"{label} must be greater than zero.");
         }
+        static void PositiveWhenPresent(IDictionary<string, IReadOnlyList<string>> target, string key, long? value, string label)
+        {
+            if (value is <= 0) Add(target, key, $"{label} must be greater than zero.");
+        }
 
         Required(fields, "policyUrl", values.PolicyUrl, "Policy URL");
         if (!Missing(values.PolicyUrl) &&
@@ -420,6 +430,14 @@ public sealed class OnboardingSetupService(
             values.Processing?.AttachmentLimits?.MaximumStructuredTextDepth, "Structured text depth");
         Positive(fields, "aiRuntime.timeoutSeconds", values.AiRuntime?.TimeoutSeconds, "AI timeout");
         Positive(fields, "audit.retentionDays", values.Audit?.RetentionDays, "Retention days");
+        PositiveWhenPresent(fields, "audit.evidenceRetentionDays", values.Audit?.EvidenceRetentionDays, "Evidence retention days");
+        PositiveWhenPresent(fields, "audit.maximumSelectedVideoScreenshots", values.Audit?.MaximumSelectedVideoScreenshots,
+            "Maximum selected video screenshots");
+        if (values.Audit?.EvidenceRetentionDays is > 3650)
+            Add(fields, "audit.evidenceRetentionDays", "Evidence retention days must be 3650 or less.");
+        if (values.Audit?.MaximumSelectedVideoScreenshots is > DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots)
+            Add(fields, "audit.maximumSelectedVideoScreenshots",
+                $"Maximum selected video screenshots must be {DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots} or less.");
 
         Required(fields, "policy.id", values.Policy?.Id, "Policy ID");
         Required(fields, "policy.version", values.Policy?.Version, "Policy version");
@@ -546,7 +564,9 @@ public sealed class OnboardingSetupService(
             values.Processing.AttachmentLimits.MaximumImageBytes is null or <= 0 or > int.MaxValue ||
             values.Processing.AttachmentLimits.MaximumCsvRows is null or <= 0 ||
             values.Processing.AttachmentLimits.MaximumStructuredTextDepth is null or <= 0 ||
-            values.Audit.RetentionDays is <= 0)
+            values.Audit.RetentionDays is <= 0 ||
+            values.Audit.EvidenceRetentionDays is <= 0 or > 3650 ||
+            values.Audit.MaximumSelectedVideoScreenshots is <= 0 or > DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots)
             return false;
         if (values.Exclusions.Any(item => string.IsNullOrWhiteSpace(item.Id) ||
                 string.IsNullOrWhiteSpace(item.Field) ||
@@ -642,7 +662,11 @@ public sealed class OnboardingSetupService(
                     values.Processing.AttachmentLimits.MaximumImageBytes ?? 0,
                     values.Processing.AttachmentLimits.MaximumCsvRows ?? 0,
                     values.Processing.AttachmentLimits.MaximumStructuredTextDepth ?? 0)),
-            new AuditConfiguration(values.Audit.RetentionDays ?? 0),
+            new AuditConfiguration(values.Audit.RetentionDays ?? 0)
+            {
+                EvidenceRetentionDays = values.Audit.EvidenceRetentionDays ?? DeploymentConfigurationDefaults.EvidenceRetentionDays,
+                MaximumSelectedVideoScreenshots = values.Audit.MaximumSelectedVideoScreenshots ?? DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots
+            },
             values.Exclusions?.Select(item => new ExclusionRule(item.Id?.Trim() ?? string.Empty,
                 item.Field?.Trim() ?? string.Empty, ExclusionOperator.EqualsAny,
                 item.Values?.Select(value => value.Trim()).ToArray() ?? [])).ToArray() ?? [],

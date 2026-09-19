@@ -7,6 +7,24 @@ namespace IntakeGate.UnitTests;
 
 public sealed class DecisionHandlerTests
 {
+    [Fact]
+    public void CACHE_005_MutationFingerprintIgnoresMarkerIdentityButDetectsDiagnosticChanges()
+    {
+        var first = Completed(IntakeDecision.Fail).Result!;
+        var second = first with { EvaluationId = "22222222-2222-4222-8222-222222222222" };
+        var renderer = new IntakeCommentRenderer();
+        var firstComment = renderer.Render(first, PolicyUrl);
+        var secondComment = renderer.Render(second, PolicyUrl);
+        var firstPlan = PlannedAdoMutation.Create("1", [ProposedMutation.PostComment(firstComment.Body, firstComment.Marker)], first, "context");
+        var secondPlan = PlannedAdoMutation.Create("2", [ProposedMutation.PostComment(secondComment.Body, secondComment.Marker)], second, "context");
+        var changed = second with { EngineeringSummary = "Materially changed diagnostic context." };
+        var changedComment = renderer.Render(changed, PolicyUrl);
+        var changedPlan = PlannedAdoMutation.Create("2", [ProposedMutation.PostComment(changedComment.Body, changedComment.Marker)], changed, "context");
+
+        Assert.Equal(firstPlan.ContentFingerprint, secondPlan.ContentFingerprint);
+        Assert.NotEqual(firstPlan.ContentFingerprint, changedPlan.ContentFingerprint);
+    }
+
     private static readonly Uri PolicyUrl = new("https://example.invalid/intake-policy");
     private static readonly IntakeGate.Application.Configuration.IntakeStateConfiguration Tags =
         new("INTAKE-VALIDATED", "INTAKE-INCOMPLETE");
@@ -73,7 +91,8 @@ public sealed class DecisionHandlerTests
         Assert.Contains("Trusted ambiguity.", comment.Body, StringComparison.Ordinal);
         Assert.Contains("Support action: Clarify trusted ambiguity.", comment.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("satisfied_only", comment.Body, StringComparison.Ordinal);
-        Assert.DoesNotContain("Trusted engineering summary.", comment.Body, StringComparison.Ordinal);
+        Assert.Contains("Engineering Intake Analysis", comment.Body, StringComparison.Ordinal);
+        Assert.Contains("Trusted engineering summary.", comment.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("schemaVersion", comment.Body, StringComparison.Ordinal);
         Assert.Contains(PolicyUrl.AbsoluteUri, comment.Body, StringComparison.Ordinal);
         Assert.Contains("intake completeness only", comment.Body, StringComparison.Ordinal);

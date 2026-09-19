@@ -2,11 +2,12 @@ using IntakeGate.Application.Audit;
 using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Decision;
 using IntakeGate.Application.Evaluation;
+using IntakeGate.Application.Evidence;
 using IntakeGate.Application.WorkItems;
 
 namespace IntakeGate.Host.Operations;
 
-public sealed record AnalyzeWorkItemRequest(int? WorkItemId, string? WorkItemUrl);
+public sealed record AnalyzeWorkItemRequest(int? WorkItemId, string? WorkItemUrl, bool ForceFresh = false);
 
 public sealed record RunExecutionResponse(
     Guid RunId,
@@ -136,7 +137,90 @@ public sealed record RunItemDetailResponse(
     bool? MateriallyChanged,
     TokenUsageResponse? TokenUsage,
     EstimatedCostResponse? EstimatedCost,
-    IReadOnlyList<SafeOperationalErrorResponse> Errors);
+    IReadOnlyList<SafeOperationalErrorResponse> Errors)
+{
+    public StructuredTicketSummaryResponse TicketSummary { get; init; } = StructuredTicketSummaryResponse.Empty;
+    public AnalysisContextResponse? AnalysisContext { get; init; }
+    public IReadOnlyList<AttachmentProcessingResponse> AttachmentProcessing { get; init; } = [];
+    public AiObservabilityResponse Ai { get; init; } = AiObservabilityResponse.Empty;
+    public PlannedAdoMutationResponse? PlannedAdoMutation { get; init; }
+    public bool ReusableEvidenceAvailable { get; init; }
+    public DateTimeOffset? ReusableEvidenceExpiresAtUtc { get; init; }
+}
+
+public sealed record StructuredTicketSummaryResponse(
+    string? IssueSummary,
+    string? ExpectedBehavior,
+    string? ActualBehavior,
+    IReadOnlyList<string> ReproductionSteps,
+    IReadOnlyList<string> AffectedExamples,
+    string? Environment,
+    string? BusinessImpact,
+    IReadOnlyList<string> AttachmentFindings,
+    IReadOnlyList<string> InvestigationWarnings)
+{
+    public static StructuredTicketSummaryResponse Empty { get; } = new(null, null, null, [], [], null, null, [], []);
+}
+
+public sealed record AnalysisContextResponse(
+    string SnapshotId,
+    string SchemaVersion,
+    string NormalizedEvidenceSchemaVersion,
+    string EvaluatedRevision,
+    IReadOnlyList<string> SourceFields,
+    int HumanCommentsIncluded,
+    int HumanCommentsAvailable,
+    int GeneratedCommentsExcluded,
+    int AttachmentCount,
+    bool TruncationOccurred,
+    bool RedactionOccurred,
+    int RedactionCount,
+    IReadOnlyList<string> ProcessingWarnings,
+    DateTimeOffset ExpiresAtUtc);
+
+public sealed record AttachmentProcessingResponse(
+    string AttachmentId,
+    string FileName,
+    string? MediaType,
+    long? SizeBytes,
+    AttachmentProcessingStatus Status,
+    AttachmentInspectionMode InspectionMode,
+    string? ProcessorIdentity,
+    string? ProcessorVersion,
+    bool CacheReused,
+    bool Truncated,
+    bool Sampled,
+    int? PagesAvailable,
+    int? PagesInspected,
+    string? FailureCategory,
+    IReadOnlyList<string> Warnings,
+    string NormalizedEvidencePreview);
+
+public sealed record AiObservabilityResponse(
+    string ConfiguredProvider,
+    string ConfiguredModel,
+    string? ProviderReportedModel,
+    string PromptVersion,
+    int RunInteractions,
+    int AttachmentArtifactsReused,
+    int AttachmentArtifactsRegenerated,
+    bool EvaluationReused,
+    string? OriginEvaluationId,
+    Guid? OriginRunId,
+    AnalysisExecutionMode ExecutionMode)
+{
+    public IReadOnlyList<string> ProviderRequestIds { get; init; } = [];
+    public static AiObservabilityResponse Empty { get; } = new("", "", null, "", 0, 0, 0, false, null, null, AnalysisExecutionMode.NormalReuseEligible);
+}
+
+public sealed record PlannedAdoMutationResponse(
+    string PlanId,
+    string EvaluatedRevision,
+    IReadOnlyList<string> TagAdditions,
+    IReadOnlyList<string> TagRemovals,
+    string? ExactCommentBody,
+    IReadOnlyList<string> FutureDerivedAttachmentUploads,
+    string ContentFingerprint);
 
 public sealed record EffectResponse(
     ProposedMutationType Type,

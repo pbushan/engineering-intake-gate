@@ -12,13 +12,13 @@ const parseIdentity = (value: string): AnalyzeWorkItemRequest | null => {
   if (/^[0-9]+$/.test(normalized)) {
     const id = Number(normalized);
     return Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647
-      ? { workItemId: id, workItemUrl: null }
+      ? { workItemId: id, workItemUrl: null, forceFresh: false }
       : null;
   }
   try {
     const url = new URL(normalized);
     return /^https?:$/.test(url.protocol) && /\/_workitems\/edit\/[1-9][0-9]*\/?$/i.test(url.pathname)
-      ? { workItemId: null, workItemUrl: normalized }
+      ? { workItemId: null, workItemUrl: normalized, forceFresh: false }
       : null;
   } catch {
     return null;

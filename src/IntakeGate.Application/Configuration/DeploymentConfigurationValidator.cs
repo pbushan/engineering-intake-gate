@@ -140,6 +140,12 @@ public sealed class DeploymentConfigurationValidator : IDeploymentConfigurationV
         AtMostInt32(input.Processing?.AttachmentLimits?.MaximumBytesPerAttachment, "processing.attachmentLimits.maximumBytesPerAttachment", errors);
         AtMostInt32(input.Processing?.AttachmentLimits?.MaximumImageBytes, "processing.attachmentLimits.maximumImageBytes", errors);
         Positive(input.Audit?.RetentionDays, "audit.retentionDays", errors);
+        PositiveIfSpecified(input.Audit?.EvidenceRetentionDays, "audit.evidenceRetentionDays", errors);
+        PositiveIfSpecified(input.Audit?.MaximumSelectedVideoScreenshots, "audit.maximumSelectedVideoScreenshots", errors);
+        if (input.Audit?.EvidenceRetentionDays is > 3650)
+            errors.Add("audit.evidenceRetentionDays must be 3650 or less.");
+        if (input.Audit?.MaximumSelectedVideoScreenshots is > DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots)
+            errors.Add($"audit.maximumSelectedVideoScreenshots must be {DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots} or less.");
 
         var exclusions = new List<ExclusionRule>();
         foreach (var exclusion in input.Exclusions ?? [])
@@ -185,7 +191,11 @@ public sealed class DeploymentConfigurationValidator : IDeploymentConfigurationV
                     input.Processing.AttachmentLimits.MaximumImageBytes ?? input.Processing.AttachmentLimits.MaximumBytesPerAttachment.Value,
                     input.Processing.AttachmentLimits.MaximumCsvRows ?? 1_000,
                     input.Processing.AttachmentLimits.MaximumStructuredTextDepth ?? 32)),
-            new AuditConfiguration(input.Audit!.RetentionDays!.Value),
+            new AuditConfiguration(input.Audit!.RetentionDays!.Value)
+            {
+                EvidenceRetentionDays = input.Audit.EvidenceRetentionDays ?? DeploymentConfigurationDefaults.EvidenceRetentionDays,
+                MaximumSelectedVideoScreenshots = input.Audit.MaximumSelectedVideoScreenshots ?? DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots
+            },
             exclusions);
     }
 

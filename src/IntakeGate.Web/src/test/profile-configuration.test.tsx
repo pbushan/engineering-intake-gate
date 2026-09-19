@@ -92,7 +92,7 @@ describe('Profile / Configuration editing', () => {
 
     const exported = {
       format: 'engineering-intake-gate-profile', version: 1, exportedAt: '2026-09-18T12:00:00Z',
-      profile: { ...completeDraft.values, policy: undefined, audit: { retentionDays: 120 } },
+      profile: { ...completeDraft.values, policy: undefined, audit: { retentionDays: 120, evidenceRetentionDays: 30, maximumSelectedVideoScreenshots: 6 } },
       policy: completeDraft.values!.policy,
     };
     const input = screen.getByLabelText('Choose Profile JSON file');
