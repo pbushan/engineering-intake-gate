@@ -4294,6 +4294,8 @@
           "amount",
           "currency",
           "evaluationsWithEstimate",
+          "evaluationsWithCompleteEstimate",
+          "evaluationsWithPartialEstimate",
           "evaluationsWithoutEstimate",
           "complete"
         ],
@@ -4322,6 +4324,22 @@
             ],
             "format": "int32"
           },
+          "evaluationsWithCompleteEstimate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "evaluationsWithPartialEstimate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "evaluationsWithoutEstimate": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -4340,7 +4358,10 @@
         "required": [
           "amount",
           "currency",
-          "pricingIdentity"
+          "pricingIdentity",
+          "complete",
+          "pricedInteractions",
+          "totalInteractions"
         ],
         "type": "object",
         "properties": {
@@ -4360,6 +4381,25 @@
               "null",
               "string"
             ]
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "pricedInteractions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalInteractions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         },
         "additionalProperties": false

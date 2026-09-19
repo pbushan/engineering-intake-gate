@@ -3622,6 +3622,10 @@ export interface components {
             /** Format: int32 */
             evaluationsWithEstimate: number | string;
             /** Format: int32 */
+            evaluationsWithCompleteEstimate: number | string;
+            /** Format: int32 */
+            evaluationsWithPartialEstimate: number | string;
+            /** Format: int32 */
             evaluationsWithoutEstimate: number | string;
             complete: boolean;
         };
@@ -3630,6 +3634,11 @@ export interface components {
             amount: number | string;
             currency: string;
             pricingIdentity: null | string;
+            complete: boolean;
+            /** Format: int32 */
+            pricedInteractions: number | string;
+            /** Format: int32 */
+            totalInteractions: number | string;
         };
         EvaluationAmbiguity: {
             criterionId: null | string;

@@ -184,6 +184,23 @@ describe('OPS-UI-005 run detail', () => {
     expect(screen.getAllByText('Engineering Ready').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1,500/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/0\.0042/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Estimated AI cost')).toHaveLength(1);
+  });
+
+  it('renders unknown and partial run and evaluation costs without treating them as zero', async () => {
+    const partialCost = { ...runSummary.estimatedCost!, complete: false, pricedInteractions: 1, totalInteractions: 2 };
+    renderAt(`/runs/${runSummary.runId}`, { runDetail: {
+      ...runDetail,
+      summary: { ...runSummary, estimatedCost: partialCost },
+      items: [{ ...runDetail.items[0]!, estimatedCost: null },
+        { ...runDetail.items[0]!, evaluationId: 'evaluation-102', workItemId: '102', estimatedCost: partialCost }],
+    } });
+
+    await screen.findByRole('heading', { name: /Run aaaaaaaa/ });
+    expect(screen.getAllByText('Partial estimate').length).toBeGreaterThanOrEqual(2);
+    const table = screen.getByRole('table', { name: 'Run evaluations' });
+    expect(within(table).getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Estimated AI cost')).toHaveLength(1);
   });
 
   it('handles a historical null generation without inventing metadata', async () => {
