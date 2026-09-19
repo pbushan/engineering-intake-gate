@@ -36,7 +36,7 @@ public sealed class IntakeCommentRenderer : IIntakeCommentRenderer
 
         Engineering Intake Summary
 
-        {result.EngineeringSummary}
+        {RenderSummary(result)}
 
         This intake validation does not confirm defect classification, root cause, severity, priority, solution, or ownership.
 
@@ -51,6 +51,11 @@ public sealed class IntakeCommentRenderer : IIntakeCommentRenderer
         builder.AppendLine("⚠️ Engineering intake incomplete");
         builder.AppendLine();
         builder.AppendLine("This ticket does not yet contain enough information for Engineering to begin investigation without avoidable clarification.");
+
+        builder.AppendLine();
+        builder.AppendLine("Engineering Intake Analysis");
+        builder.AppendLine();
+        builder.AppendLine(RenderSummary(result));
 
         if (result.Deficiencies.Count > 0)
         {
@@ -85,5 +90,31 @@ public sealed class IntakeCommentRenderer : IIntakeCommentRenderer
         builder.AppendLine();
         builder.Append(marker);
         return builder.ToString();
+    }
+
+    private static string RenderSummary(EvaluationResult result)
+    {
+        var summary = result.TicketSummary;
+        if (summary == StructuredTicketSummary.Empty) return result.EngineeringSummary;
+        var builder = new StringBuilder();
+        Add("Issue summary", summary.IssueSummary);
+        Add("Expected behavior", summary.ExpectedBehavior);
+        Add("Actual behavior", summary.ActualBehavior);
+        Add("Environment", summary.Environment);
+        Add("Business impact", summary.BusinessImpact);
+        AddList("Reproduction steps", summary.ReproductionSteps);
+        AddList("Affected examples", summary.AffectedExamples);
+        AddList("Attachment findings", summary.AttachmentFindings);
+        AddList("Investigation warnings", summary.InvestigationWarnings);
+        return builder.Length == 0 ? result.EngineeringSummary : builder.ToString().TrimEnd();
+
+        void Add(string label, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value)) builder.Append("- ").Append(label).Append(": ").AppendLine(value);
+        }
+        void AddList(string label, IReadOnlyList<string> values)
+        {
+            if (values.Count > 0) builder.Append("- ").Append(label).Append(": ").AppendLine(string.Join("; ", values));
+        }
     }
 }

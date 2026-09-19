@@ -56,7 +56,7 @@ describe('OPS-UI-002 governed Analyze Ticket execution', () => {
     await user.click(screen.getByRole('button', { name: 'Analyze Ticket' }));
     expect(await screen.findByRole('heading', { name: /Run aaaaaaaa/ })).toBeVisible();
     const call = backend.calls.find((entry) => entry.path === '/api/runs/work-items' && entry.method === 'POST');
-    expect(JSON.parse(call?.body ?? '{}')).toEqual({ workItemId: 202, workItemUrl: null });
+    expect(JSON.parse(call?.body ?? '{}')).toEqual({ workItemId: 202, workItemUrl: null, forceFresh: false });
   });
 
   it('submits a full supported ADO URL without reconstructing it', async () => {
@@ -67,7 +67,7 @@ describe('OPS-UI-002 governed Analyze Ticket execution', () => {
     await user.click(screen.getByRole('button', { name: 'Analyze Ticket' }));
     expect(await screen.findByRole('heading', { name: /Run aaaaaaaa/ })).toBeVisible();
     const call = backend.calls.find((entry) => entry.path === '/api/runs/work-items' && entry.method === 'POST');
-    expect(JSON.parse(call?.body ?? '{}')).toEqual({ workItemId: null, workItemUrl: url });
+    expect(JSON.parse(call?.body ?? '{}')).toEqual({ workItemId: null, workItemUrl: url, forceFresh: false });
   });
 
   it('rejects invalid input with an associated bounded form error', async () => {
@@ -263,6 +263,28 @@ describe('OPS-UI-006 evaluation detail', () => {
     expect(within(effects).getByText('Dry Run — no Azure DevOps modifications were made.')).toBeVisible();
   });
 
+  it('shows structured context, attachment reuse, cost provenance, and exact Dry Run preview', async () => {
+    renderEvaluation();
+    expect(await screen.findByRole('heading', { name: 'Ticket Summary' })).toBeVisible();
+    expect(screen.getByText('Checkout fails after submitting payment.')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Analysis Context' })).toBeVisible();
+    expect(screen.getByText(/1 secret value.*redacted/)).toBeVisible();
+    expect(screen.getByRole('table', { name: 'Attachment processing' })).toHaveTextContent('Reused');
+    expect(screen.getByRole('heading', { name: 'Exact ADO Preview' })).toBeVisible();
+    expect(screen.getByText('Exact proposed comment')).toBeVisible();
+    expect(screen.getByText('Dry Run — no Azure DevOps changes were made.')).toBeVisible();
+  });
+
+  it('confirms Force Fresh Analysis with clear cost and no-write copy', async () => {
+    const user = userEvent.setup();
+    renderEvaluation();
+    await user.click(await screen.findByRole('button', { name: 'Force Fresh Analysis' }));
+    const dialog = screen.getByRole('dialog', { name: 'Force Fresh Analysis?' });
+    expect(dialog).toHaveTextContent('may incur additional AI cost');
+    expect(dialog).toHaveTextContent('will not change Azure DevOps');
+    expect(within(dialog).getByRole('button', { name: 'Force Fresh Analysis' })).toBeVisible();
+  });
+
   it('renders actual effects only from backend actualEffects', async () => {
     renderEvaluation({ ...runItemDetail, effectiveMode: 'live', actualEffects: [{ type: 'addTag', target: 'intakeTags', tag: 'Engineering Ready' }] });
     await screen.findByRole('heading', { name: 'Evaluation detail' });
@@ -321,5 +343,7 @@ describe('OPS-UI-006 evaluation detail', () => {
     renderAt(`/runs/${runSummary.runId}/items/${runItemDetail.evaluationId}`, { user: viewerUser });
     expect(await screen.findByRole('heading', { name: 'Evaluation detail' })).toBeVisible();
     expect(screen.queryByRole('button', { name: /run profile|analyze ticket/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rerun' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Force Fresh Analysis' })).not.toBeInTheDocument();
   });
 });

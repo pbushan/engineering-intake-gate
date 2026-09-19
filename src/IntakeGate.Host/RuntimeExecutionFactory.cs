@@ -62,7 +62,7 @@ public sealed class RuntimeExecutionFactory(
             services.GetRequiredService<IIntakeDecisionHandler>(),
             services.GetRequiredService<IAuditRepository>(), services.GetRequiredService<IClock>(),
             services.GetRequiredService<IRunAuditLog>(), services.GetRequiredService<IAiCostAccountingService>(),
-            ado.Source, ado.Writer);
+            ado.Source, ado.Writer, services.GetRequiredService<IAnalysisCacheRepository>());
         var reconciliation = new MutationReconciliationService(
             ado.Source, ado.Writer, services.GetRequiredService<IReconciliationRepository>(),
             services.GetRequiredService<IAuditRepository>(), services.GetRequiredService<IClock>(),

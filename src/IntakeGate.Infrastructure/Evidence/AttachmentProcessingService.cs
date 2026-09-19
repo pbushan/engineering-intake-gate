@@ -8,15 +8,46 @@ namespace IntakeGate.Infrastructure.Evidence;
 /// Deterministically orders attachment work, applies input budgets before parsing, and dispatches
 /// only bounded in-memory buffers to format processors. It performs no network operations.
 /// </summary>
-public sealed class AttachmentProcessingService(IEnumerable<IAttachmentProcessor> processors) : IAttachmentProcessingService
+public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessingService
 {
-    private readonly IAttachmentProcessor[] processors = processors.ToArray();
+    private readonly IAttachmentProcessor[] processors;
+    private readonly IAnalysisCacheRepository cache;
+    private readonly ISecretRedactor redactor;
+
+    public AttachmentProcessingService(IEnumerable<IAttachmentProcessor> processors)
+        : this(processors, new NullAnalysisCacheRepository(), new SecretRedactor()) { }
+
+    public AttachmentProcessingService(
+        IEnumerable<IAttachmentProcessor> processors,
+        IAnalysisCacheRepository cache,
+        ISecretRedactor redactor)
+    {
+        this.processors = processors.ToArray();
+        this.cache = cache;
+        this.redactor = redactor;
+    }
 
     public async ValueTask<IReadOnlyList<AttachmentProcessingResult>> ProcessAsync(
         IReadOnlyList<RawAttachmentMetadata> attachments,
         AttachmentLimits limits,
         int maximumExtractedCharacters,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await ProcessCoreAsync(attachments, limits, maximumExtractedCharacters, null, cancellationToken);
+
+    public async ValueTask<IReadOnlyList<AttachmentProcessingResult>> ProcessAsync(
+        IReadOnlyList<RawAttachmentMetadata> attachments,
+        AttachmentLimits limits,
+        int maximumExtractedCharacters,
+        EvidencePreparationOptions options,
+        CancellationToken cancellationToken = default) =>
+        await ProcessCoreAsync(attachments, limits, maximumExtractedCharacters, options, cancellationToken);
+
+    private async ValueTask<IReadOnlyList<AttachmentProcessingResult>> ProcessCoreAsync(
+        IReadOnlyList<RawAttachmentMetadata> attachments,
+        AttachmentLimits limits,
+        int maximumExtractedCharacters,
+        EvidencePreparationOptions? options,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(attachments);
         Validate(limits, maximumExtractedCharacters);
@@ -93,18 +124,21 @@ public sealed class AttachmentProcessingService(IEnumerable<IAttachmentProcessor
             aggregateBytes += bytes.LongLength;
             var mediaType = AttachmentMediaDetector.Detect(attachment.ContentType, attachment.FileName, bytes);
             var detected = new DetectedAttachment(attachment.Reference, attachment.FileName, mediaType, bytes);
+            var contentSha256 = AnalysisFingerprint.Sha256(bytes);
 
             if (mediaType is "image/png" or "image/jpeg")
             {
                 imageCount++;
                 if (imageCount > limits.MaximumImageCount)
                 {
-                    results.Add(Result(attachment, AttachmentProcessingStatus.Partial, "ImageCountLimitExceeded", stopwatch, mediaType, bytes.LongLength));
+                    results.Add(Result(attachment, AttachmentProcessingStatus.Partial, "ImageCountLimitExceeded", stopwatch,
+                        mediaType, bytes.LongLength, contentSha256));
                     continue;
                 }
                 if (bytes.LongLength > Math.Min(limits.MaximumImageBytes, limits.MaximumBytesPerAttachment))
                 {
-                    results.Add(Result(attachment, AttachmentProcessingStatus.Partial, "ImageByteLimitExceeded", stopwatch, mediaType, bytes.LongLength));
+                    results.Add(Result(attachment, AttachmentProcessingStatus.Partial, "ImageByteLimitExceeded", stopwatch,
+                        mediaType, bytes.LongLength, contentSha256));
                     continue;
                 }
             }
@@ -112,19 +146,91 @@ public sealed class AttachmentProcessingService(IEnumerable<IAttachmentProcessor
             var processor = processors.FirstOrDefault(candidate => candidate.CanProcess(detected));
             if (processor is null)
             {
-                results.Add(Result(attachment, AttachmentProcessingStatus.Unsupported, "UnsupportedAttachmentType", stopwatch, mediaType, bytes.LongLength));
+                results.Add(Result(attachment, AttachmentProcessingStatus.Unsupported, "UnsupportedAttachmentType", stopwatch,
+                    mediaType, bytes.LongLength, contentSha256));
                 continue;
+            }
+
+            var limitsFingerprint = AnalysisFingerprint.ProcessingLimits(limits, maximumExtractedCharacters);
+            var artifactId = options is null ? null : AnalysisFingerprint.Artifact(
+                options.Organization, options.Project, attachment.Reference, contentSha256,
+                processor.ProcessorIdentity, processor.ProcessorVersion, limitsFingerprint);
+            if (options is not null && !options.ForceFresh)
+            {
+                var cached = await cache.GetAttachmentAsync(artifactId!, options.Organization, options.Project,
+                    options.CreatedAtUtc, cancellationToken);
+                if (cached is not null)
+                {
+                    VisualAttachmentContent? cachedVisual = mediaType is "image/png" or "image/jpeg"
+                        ? new VisualAttachmentContent(mediaType, bytes)
+                        : null;
+                    results.Add(new AttachmentProcessingResult(
+                        attachment.Reference, attachment.FileName, cached.MediaType, cached.SourceByteSize,
+                        cached.ProcessingStatus, cached.InspectionMode, cached.NormalizedEvidence,
+                        cached.Truncated, cached.Sampled, cached.PagesAvailable, cached.PagesInspected,
+                        cached.FailureCategory, cachedVisual, stopwatch.ElapsedMilliseconds)
+                    {
+                        ContentSha256 = contentSha256,
+                        ArtifactId = cached.ArtifactId,
+                        ProcessorIdentity = cached.ProcessorIdentity,
+                        ProcessorVersion = cached.ProcessorVersion,
+                        CacheReused = true,
+                        Warnings = cached.Warnings,
+                        RedactionCategoryCounts = cached.RedactionCategoryCounts
+                    });
+                    continue;
+                }
             }
 
             try
             {
                 var output = await processor.ProcessAsync(detected, limits, maximumExtractedCharacters, cancellationToken);
+                var attachmentRedaction = redactor.Redact(output.ExtractedEvidence);
+                var normalizedEvidence = attachmentRedaction.Content;
                 stopwatch.Stop();
-                results.Add(new AttachmentProcessingResult(
+                var result = new AttachmentProcessingResult(
                     attachment.Reference, attachment.FileName, mediaType, bytes.LongLength,
-                    output.ProcessingStatus, output.InspectionMode, output.ExtractedEvidence,
+                    output.ProcessingStatus, output.InspectionMode, normalizedEvidence,
                     output.Truncated, output.Sampled, output.PagesAvailable, output.PagesInspected,
-                    output.FailureCategory, output.VisualContent, stopwatch.ElapsedMilliseconds));
+                    output.FailureCategory, output.VisualContent, stopwatch.ElapsedMilliseconds)
+                {
+                    ContentSha256 = contentSha256,
+                    ArtifactId = artifactId,
+                    ProcessorIdentity = processor.ProcessorIdentity,
+                    ProcessorVersion = processor.ProcessorVersion,
+                    CacheReused = false,
+                    Warnings = output.FailureCategory is null ? [] : [output.FailureCategory],
+                    RedactionCategoryCounts = attachmentRedaction.CategoryCounts
+                };
+                if (options is not null)
+                {
+                    var safeFileName = redactor.Redact(attachment.FileName).Content;
+                    try
+                    {
+                        await cache.SaveAttachmentAsync(new AttachmentEvidenceArtifact(
+                            artifactId!, options.Organization, options.Project, attachment.Reference,
+                            safeFileName, mediaType, bytes.LongLength, contentSha256,
+                            processor.ProcessorIdentity, processor.ProcessorVersion,
+                            AnalysisContextVersions.NormalizedEvidence, limitsFingerprint, normalizedEvidence,
+                            output.ProcessingStatus, output.InspectionMode, output.Truncated, output.Sampled,
+                            output.PagesAvailable, output.PagesInspected, output.FailureCategory, result.Warnings,
+                            options.CreatedAtUtc, options.ExpiresAtUtc)
+                        {
+                            RedactionCategoryCounts = attachmentRedaction.CategoryCounts
+                        }, cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception)
+                    {
+                        // Reusable artifact persistence is an optimization. Preserve the successfully
+                        // processed evidence and disclose that this artifact was not cached.
+                        result = result with { ArtifactId = null, Warnings = [.. result.Warnings, "EvidenceCachePersistenceFailed"] };
+                    }
+                }
+                results.Add(result);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -132,7 +238,13 @@ public sealed class AttachmentProcessingService(IEnumerable<IAttachmentProcessor
             }
             catch (Exception)
             {
-                results.Add(Result(attachment, AttachmentProcessingStatus.Error, "AttachmentProcessingFailed", stopwatch, mediaType, bytes.LongLength));
+                results.Add(Result(attachment, AttachmentProcessingStatus.Error, "AttachmentProcessingFailed", stopwatch,
+                    mediaType, bytes.LongLength, contentSha256) with
+                {
+                    ArtifactId = artifactId,
+                    ProcessorIdentity = processor.ProcessorIdentity,
+                    ProcessorVersion = processor.ProcessorVersion
+                });
             }
         }
 
@@ -165,14 +277,18 @@ public sealed class AttachmentProcessingService(IEnumerable<IAttachmentProcessor
         string failure,
         Stopwatch stopwatch,
         string? mediaType = null,
-        long? size = null)
+        long? size = null,
+        string? contentSha256 = null)
     {
         stopwatch.Stop();
         return new AttachmentProcessingResult(
             attachment.Reference, attachment.FileName, mediaType ?? attachment.ContentType,
             size ?? attachment.Content?.Length ?? attachment.ContentBytes?.LongLength ?? attachment.SizeBytes, status, AttachmentInspectionMode.None,
             string.Empty, status == AttachmentProcessingStatus.Partial, false, null, null, failure, null,
-            stopwatch.ElapsedMilliseconds);
+            stopwatch.ElapsedMilliseconds)
+        {
+            ContentSha256 = contentSha256
+        };
     }
 
     private static void Validate(AttachmentLimits limits, int maximumExtractedCharacters)

@@ -22,6 +22,8 @@ Engineering Intake Gate applies one explicit, repeatable quality gate before inv
 - Suppresses duplicate updates when a materially unchanged assessment is safely proven.
 - Provides Home metrics, run history, run detail, evaluation detail, System Health, and actor-aware Audit views.
 - Records per-request provider/model usage and persisted USD estimated AI cost, including retry, partial, and unavailable-cost semantics.
+- Persists a bounded, redacted Analysis Context and attachment-evidence cache for 30 days by default, with smart rerun and explicit Force Fresh Analysis.
+- Produces a structured ticket summary for both Engineering Ready and Intake Incomplete and previews the exact planned Azure DevOps comment/tag delta.
 - Enforces local Admin/Viewer RBAC, cookie sessions, CSRF protection, encrypted local credentials, and environment-variable credential references.
 - Activates append-only configuration generations so an active run cannot change underneath itself.
 - Resumes the first-run setup wizard from backend-persisted state after browser or container restarts.
@@ -32,7 +34,7 @@ Engineering Intake Gate applies one explicit, repeatable quality gate before inv
 |---|---|
 | [![AI model setup and estimated pricing](docs/images/03-setup-ai-model.png)](docs/PRODUCT_TOUR.md#ai-provider-and-model) | [![Home operational overview](docs/images/07-home.png)](docs/PRODUCT_TOUR.md#home) |
 | [![Saved-query preview](docs/images/05-query-preview.png)](docs/PRODUCT_TOUR.md#saved-query-preview) | [![Run detail with one cost summary](docs/images/10-run-detail.png)](docs/PRODUCT_TOUR.md#run-detail) |
-| [![Setup review](docs/images/06-setup-review.png)](docs/PRODUCT_TOUR.md#review-and-finish) | [![Evaluation detail](docs/images/11-evaluation-detail.png)](docs/PRODUCT_TOUR.md#evaluation-detail) |
+| [![Setup review](docs/images/06-setup-review.png)](docs/PRODUCT_TOUR.md#review-and-finish) | [Evaluation detail: Analysis Context, reuse, and exact Dry Run preview](docs/PRODUCT_TOUR.md#evaluation-detail) |
 
 See the [full Product Tour](docs/PRODUCT_TOUR.md) for all major screens, controls, workflows, and safety behavior.
 
@@ -68,7 +70,7 @@ A stronger report might include a synthetic staging environment, exact steps, an
 2. **Analyze one ticket** — enter a positive work-item ID or a work-item URL from the configured organization/project. The backend rechecks saved-query membership and exclusions before AI is allowed to run.
 3. **Run Profile Now** — execute the configured saved query immediately through the same lease, discovery, evaluation, and audit path used by the scheduler.
 4. **Automatic evaluation** — the in-process scheduler uses the active immutable generation, configured `TimeZoneInfo` timezone, and Cronos schedule. Manual Only creates no automatic executions.
-5. **Review results** — inspect run totals, per-ticket criteria, deficiencies, ambiguities, proposed/actual effects, token usage, and estimated cost.
+5. **Review results** — inspect the structured ticket summary, Analysis Context, attachment processing/reuse, criteria, exact ADO preview, token usage, and current-run cost.
 6. **Diagnose integrations** — review persisted state in System Health and explicitly test Azure DevOps or the selected AI provider as an Admin.
 7. **Audit changes** — filter safe, actor-aware configuration, credential, user, and execution-request events.
 
@@ -226,7 +228,7 @@ The same pricing service now snapshots estimated cost for each billable provider
 
 ### 4. System defaults and profile/policy
 
-Initialize the server-owned draft, then define versioned criteria and evaluation guidance. Configure distinct Engineering Ready/Intake Incomplete tags, policy URL/version, exclusions, retry/concurrency settings, AI timeout, audit retention, and bounded content/attachment limits. These settings describe intake sufficiency only; they must not encode defect truth, ownership, severity, or priority decisions.
+Initialize the server-owned draft, then define versioned criteria and evaluation guidance. Configure distinct Engineering Ready/Intake Incomplete tags, policy URL/version, exclusions, retry/concurrency settings, AI timeout, audit retention, 30-day-default reusable evidence retention, and bounded content/attachment limits. These settings describe intake sufficiency only; they must not encode defect truth, ownership, severity, or priority decisions.
 
 The setup and Profile / Configuration screens can export these portable settings to versioned JSON and import them later. Import is a full replacement after explicit confirmation, not a merge. The JSON contract excludes credentials, generated identifiers, runtime state, and history; incomplete imports remain editable and use the existing Profile & Policy validation guidance.
 
@@ -263,7 +265,9 @@ When enabled, the in-process scheduler evaluates future occurrences from the act
 - **Error:** a technical, provider, validation, or persistence failure; never treated as Intake Incomplete.
 - **Not Eligible:** outside the confirmed query boundary or excluded by policy; excluded from readiness metrics.
 
-Run and evaluation views show proposed effects independently from confirmed actual effects. In this Controlled Dry Run release, proposed tag/comment changes may be shown while actual effects remain empty.
+Run and evaluation views show proposed effects independently from confirmed actual effects. Evaluation detail shows the exact persisted comment/tag plan, structured PASS/FAIL summary, Analysis Context, attachment reuse, and evaluation reuse. In this Controlled Dry Run release, actual effects remain empty.
+
+Use **Rerun** to reuse every valid artifact and skip the provider entirely when nothing relevant changed. Use **Force Fresh Analysis** only when fresh processing is needed; its confirmation notes that it can incur new AI cost. Both paths remain Dry Run and create a new audit. See [Analysis Context, evidence retention, and smart rerun](docs/ANALYSIS_CONTEXT_AND_REUSE.md).
 
 Estimated AI cost is a persisted USD estimate, not provider-billed cost. Every provider interaction with usage and known pricing contributes input and output token cost; retries therefore count. Evaluation cost is the sum of its provider interactions, run cost is the sum of its evaluations, and Home aggregates those persisted evaluation estimates once within the selected 7/30/90-day window. `—` means unavailable, not zero. Partial estimates show the known amount with concise coverage text, while a true known zero is `$0.00 USD`.
 
@@ -303,7 +307,7 @@ Important contents:
 
 **A valid restore using locally encrypted credentials requires a consistent SQLite/application-state backup and the matching `intake-gate.secret-key`.** Losing or mismatching the key intentionally makes those credentials undecryptable. Preserve the Data Protection key ring to retain existing sessions; otherwise users must sign in again. The product does not implement automated backups.
 
-The database also contains the model-pricing cache and its source/freshness metadata. Schema 15 adds this table additively and does not rewrite profile, credential, or historical run data. New audit JSON snapshots retain per-interaction requested/actual model metadata, token usage, exact input/output/total estimate components, pricing provenance, and stale-cache state. This additive payload evolution requires no schema migration and leaves historical records without cost as unavailable.
+The database also contains the model-pricing cache and its source/freshness metadata. Schema 16 adds separate expiring analysis-context, attachment-artifact, reusable-evaluation, and future selected-screenshot tables without rewriting profile, credential, or historical run data. Audit JSON retains provider/cost and reuse provenance; historical records without the additive fields continue to render.
 
 ## Security
 
@@ -311,7 +315,7 @@ The database also contains the model-pricing cache and its source/freshness meta
 - HttpOnly, SameSite=Strict cookie sessions are bounded and tied to persisted user/password version state.
 - All cookie-authenticated mutations require antiforgery validation; RBAC is enforced server-side.
 - Local credentials use randomized authenticated AES-256-GCM with a separate 256-bit installation key.
-- Credentials, ciphertext, encryption keys, password material, provider payloads, whole evidence, and attachment bytes are excluded from public API/log/audit surfaces by contract and leakage tests.
+- Credentials, ciphertext, encryption keys, password material, provider payloads, and attachment bytes are excluded from public API/log/audit surfaces. Bounded normalized customer-derived evidence is now deliberately persisted after secret redaction and exposed only through safe operational DTOs.
 - Nginx provides a same-origin proxy plus Content Security Policy, frame, referrer, permissions, MIME-sniffing, and opener protections.
 - The browser never calls Azure DevOps or AI providers directly and never receives credential values.
 - Production activation remains unavailable.
@@ -343,7 +347,7 @@ These are deliberate first-release boundaries:
 - Controlled Dry Run only; Production is unavailable.
 - One logical profile and one saved query per deployment.
 - Local accounts only; no Entra ID/SSO, MFA, or password recovery.
-- No cancel, retry, rerun, or queue-based execution controls.
+- No cancel or queue-based execution controls. Normal Rerun and confirmed Force Fresh Analysis are available for a single governed ticket.
 - No out-of-query manual analysis.
 - No persistent logs UI, notifications, or advanced analytics.
 - No automatic backup system.

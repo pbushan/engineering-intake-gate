@@ -5,8 +5,8 @@ namespace IntakeGate.Application.Evaluation;
 /// <summary>The versioned prompt artifact is intentionally independent of orchestration code.</summary>
 public static class EvaluatorPrompt
 {
-    public const string Version = "intake-evaluator-v1";
-    private const string ResourceName = "IntakeGate.Application.Evaluation.Prompts.intake-evaluator-v1.md";
+    public const string Version = "intake-evaluator-v2";
+    private const string ResourceName = "IntakeGate.Application.Evaluation.Prompts.intake-evaluator-v2.md";
 
     public static string Content { get; } = Load();
 

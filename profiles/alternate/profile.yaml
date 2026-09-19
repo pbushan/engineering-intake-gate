@@ -44,4 +44,6 @@ processing:
     maximumStructuredTextDepth: 32
 audit:
   retentionDays: 60
+  evidenceRetentionDays: 30
+  maximumSelectedVideoScreenshots: 6
 exclusions: []

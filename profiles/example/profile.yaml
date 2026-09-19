@@ -51,6 +51,8 @@ processing:
 
 audit:
   retentionDays: 90
+  evidenceRetentionDays: 30
+  maximumSelectedVideoScreenshots: 6
 
 exclusions:
   - id: excluded-state

@@ -429,7 +429,11 @@ public static class ProfileManagementEndpoints
                     request.Processing.AttachmentLimits?.MaximumImageBytes ?? 0,
                     request.Processing.AttachmentLimits?.MaximumCsvRows ?? 0,
                     request.Processing.AttachmentLimits?.MaximumStructuredTextDepth ?? 0)),
-            new AuditConfiguration(request.Audit?.RetentionDays ?? 0),
+            new AuditConfiguration(request.Audit?.RetentionDays ?? 0)
+            {
+                EvidenceRetentionDays = request.Audit?.EvidenceRetentionDays ?? DeploymentConfigurationDefaults.EvidenceRetentionDays,
+                MaximumSelectedVideoScreenshots = request.Audit?.MaximumSelectedVideoScreenshots ?? DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots
+            },
             request.Exclusions?.Select(item => new ExclusionRule(
                 item.Id?.Trim() ?? string.Empty,
                 item.Field?.Trim() ?? string.Empty,
@@ -486,7 +490,9 @@ public static class ProfileManagementEndpoints
                 configuration.Profile.Schedule.Expression, configuration.Profile.Schedule.Timezone,
                 configuration.Profile.Schedule.InitialLookback.ToString("c", CultureInfo.InvariantCulture), false),
             ToProcessing(configuration.Profile.Processing),
-            new AuditResponse(configuration.Profile.Audit.RetentionDays),
+            new AuditResponse(configuration.Profile.Audit.RetentionDays,
+                configuration.Profile.Audit.EvidenceRetentionDays,
+                configuration.Profile.Audit.MaximumSelectedVideoScreenshots),
             configuration.Profile.Exclusions.Select(item => new ExclusionResponse(
                 item.Id, item.Field, "equalsAny", item.Values)).ToArray(),
             new ProfileActivationResponse(runtime.RuntimeActivationCurrent, runtime.RestartRequired,
@@ -686,7 +692,10 @@ public sealed record ContentLimitsRequest(int? MaximumTotalCharacters, int? Maxi
 public sealed record AttachmentLimitsRequest(int? MaximumCount, long? MaximumBytesPerAttachment,
     long? MaximumAggregateBytes, int? MaximumPdfPages, int? MaximumImageCount,
     long? MaximumImageBytes, int? MaximumCsvRows, int? MaximumStructuredTextDepth);
-public sealed record AuditRequest(int? RetentionDays);
+public sealed record AuditRequest(
+    int? RetentionDays,
+    int? EvidenceRetentionDays = null,
+    int? MaximumSelectedVideoScreenshots = null);
 public sealed record ExclusionRequest(string? Id, string? Field, string? Operator, IReadOnlyList<string>? Values);
 public sealed record PolicyRequest(string? Id, string? Version, IReadOnlyList<PolicyCriterionRequest>? Criteria);
 public sealed record PolicyCriterionRequest(string? Id, string? DisplayName, string? Description,
@@ -727,7 +736,10 @@ public sealed record ContentLimitsResponse(int MaximumTotalCharacters, int Maxim
 public sealed record AttachmentLimitsResponse(int MaximumCount, long MaximumBytesPerAttachment,
     long MaximumAggregateBytes, int MaximumPdfPages, int MaximumImageCount,
     long MaximumImageBytes, int MaximumCsvRows, int MaximumStructuredTextDepth);
-public sealed record AuditResponse(int RetentionDays);
+public sealed record AuditResponse(
+    int RetentionDays,
+    int EvidenceRetentionDays,
+    int MaximumSelectedVideoScreenshots);
 public sealed record ExclusionResponse(string Id, string Field, string Operator, IReadOnlyList<string> Values);
 public sealed record ProfileActivationResponse(bool RuntimeActivationCurrent, bool RestartRequired,
     bool AiRuntimeActivationPending, string Message)

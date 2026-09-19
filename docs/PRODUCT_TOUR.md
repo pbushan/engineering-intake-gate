@@ -130,15 +130,13 @@ The portable envelope is versioned (`format: engineering-intake-gate-profile`, `
 
 ## Evaluation detail
 
-![Evaluation detail](images/11-evaluation-detail.png)
-
 **Purpose:** make a single intake assessment explainable.
 
-**Key controls:** outcome summary, criterion classifications, deficiencies, ambiguities, proposed effects, actual effects, token usage, estimated cost, and safe Azure DevOps link.
+**Key controls:** Rerun, confirmed Force Fresh Analysis, structured Ticket Summary, Analysis Context, attachment processing/reuse, criterion classifications, exact ADO preview, AI provenance, current-run cost, and safe Azure DevOps link.
 
-**Typical workflow:** understand why an item is Engineering Ready, Intake Incomplete, Error, or Not Eligible, which support action would improve it, and the persisted token usage/estimated cost for the provider interactions used at evaluation time.
+**Typical workflow:** understand what the evaluator analyzed, why the item is Engineering Ready or Intake Incomplete, what attachment evidence was reused, the exact comment/tag plan, and whether the run reused a complete evaluation at `$0` new AI cost.
 
-**Safety:** proposed and actual effects are always distinct. In Controlled Dry Run, proposals may exist while actual effects remain empty. Engineering Ready carries intake-only semantics.
+**Safety:** proposed and actual effects are always distinct. Both rerun modes remain Controlled Dry Run. Force Fresh requires confirmation because it may incur cost; it never writes Azure DevOps. Normalized evidence expires after 30 days by default, while the safe audit remains.
 
 ## System Health
 

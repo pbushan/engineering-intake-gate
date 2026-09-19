@@ -59,7 +59,15 @@ public sealed record EvaluationAttachmentMetadata(
     int? PagesAvailable = null,
     int? PagesInspected = null,
     string? FailureCategory = null,
-    bool RequiresVisualInspection = false);
+    bool RequiresVisualInspection = false)
+{
+    public string? ContentSha256 { get; init; }
+    public string? ArtifactId { get; init; }
+    public string? ProcessorIdentity { get; init; }
+    public string? ProcessorVersion { get; init; }
+    public bool CacheReused { get; init; }
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
 
 public sealed class VisualEvidence
 {

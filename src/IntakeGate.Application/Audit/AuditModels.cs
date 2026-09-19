@@ -120,7 +120,15 @@ public sealed record AttachmentProcessingAuditRecord(
     bool Sampled,
     int? PagesAvailable,
     int? PagesInspected,
-    string? FailureCategory);
+    string? FailureCategory)
+{
+    public string? ContentSha256 { get; init; }
+    public string? ArtifactId { get; init; }
+    public string? ProcessorIdentity { get; init; }
+    public string? ProcessorVersion { get; init; }
+    public bool CacheReused { get; init; }
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
 
 public sealed record RunAuditRecord(
     Guid RunId,
@@ -204,4 +212,17 @@ public sealed record EvaluationAuditRecord(
     public string? SuppressionReason { get; init; }
     public bool? MateriallyChanged { get; init; }
     public IReadOnlyList<AiInteractionCostRecord> AiInteractions { get; init; } = [];
+    public StructuredTicketSummary TicketSummary { get; init; } = StructuredTicketSummary.Empty;
+    public AnalysisExecutionMode AnalysisExecutionMode { get; init; } = AnalysisExecutionMode.NormalReuseEligible;
+    public string? AnalysisContextId { get; init; }
+    public string? SourceSemanticFingerprint { get; init; }
+    public string? AttachmentManifestFingerprint { get; init; }
+    public string? EvaluationEquivalenceKey { get; init; }
+    public bool EvaluationReused { get; init; }
+    public string? OriginEvaluationId { get; init; }
+    public Guid? OriginRunId { get; init; }
+    public int AttachmentArtifactsReused { get; init; }
+    public int AttachmentArtifactsRegenerated { get; init; }
+    public PlannedAdoMutation? PlannedMutation { get; init; }
+    public DateTimeOffset? ReusableEvidenceExpiresAtUtc { get; init; }
 }

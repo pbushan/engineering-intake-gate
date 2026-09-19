@@ -128,7 +128,11 @@ RawWorkItem
   -> EvaluationEvidence
 ```
 
-Only bounded, normalized, redacted `EvaluationEvidence` can cross the AI provider boundary. Raw work items, complete evidence payloads, extracted attachment contents, attachment bytes, and provider request/response bodies are not stored in normal operational audit.
+Only bounded, normalized, redacted `EvaluationEvidence` can cross the AI provider boundary. Schema 16 deliberately persists that customer-derived normalized evidence outside the long-lived audit as an expiring `AnalysisContextSnapshot`. It also stores immutable attachment artifacts keyed by organization/project, attachment ID, content SHA-256, processor/schema versions, and processing limits. Raw work items, attachment bytes, transient visual bytes, and provider request/response bodies remain unpersisted.
+
+Source snapshot, attachment artifact, Analysis Context, trusted evaluation, and `PlannedAdoMutation` are separate concepts. Provider serialization is downstream and is never a cache format. Evaluation reuse requires matching semantic source, attachment manifest, profile/policy/prompt/provider/model/parser, and evidence/processor versions. Application-owned intake tags, validator comments, and revision/change metadata do not self-invalidate semantic source, while filename/content/processor changes invalidate the relevant layers.
+
+Reusable evidence expires after 30 days by default. Transactional idempotent cleanup runs at startup and before analysis; long-lived audit retains references and expiry metadata. A complete cache hit makes no AI request, records zero new tokens/cost, and creates a new audit linked to its origin. Force Fresh bypasses reusable evidence/evaluation but remains Dry Run. See [Analysis Context, Evidence Retention, and Smart Rerun](ANALYSIS_CONTEXT_AND_REUSE.md).
 
 Supported attachment categories are UTF-8/UTF-16 text and logs, JSON, XML, CSV, text-bearing PDF, and validated PNG/JPEG images. Processing reports explicit `processed`, `partial`, `unsupported`, `unavailable`, or `error` status. Missing or unsupported evidence is context for evaluation; it does not deterministically force Intake Incomplete.
 
@@ -140,7 +144,7 @@ AI receives a constrained, versioned request containing sanitized evidence, vali
 
 Deterministic validation rejects malformed JSON, unknown properties, unsupported schema versions, unknown/duplicate criteria, contradictory classifications, and invalid PASS/FAIL combinations. Transient provider failures and invalid responses retry only within configured bounds. Exhaustion becomes `ERROR`; it never becomes `PASS`.
 
-AI never receives an Azure DevOps client or mutation capability and never selects tags/comments. It may assess contextual criterion applicability and sufficiency, identify deficiencies/ambiguities, and produce a grounded intake summary. It may not decide defect truth, root cause, solution, ownership, severity, priority, or commitment.
+AI never receives an Azure DevOps client or mutation capability and never selects tags/comments. It may assess contextual criterion applicability and sufficiency, identify deficiencies/ambiguities, and produce a grounded structured ticket summary for both PASS and FAIL. It may not decide defect truth, root cause, solution, ownership, severity, priority, or commitment.
 
 ## Model pricing boundary
 

@@ -88,6 +88,20 @@ public sealed record EvaluationDeficiency(string CriterionId, string Reason, str
 
 public sealed record EvaluationAmbiguity(string? CriterionId, string Description, string RequiredClarification);
 
+public sealed record StructuredTicketSummary(
+    string? IssueSummary,
+    string? ExpectedBehavior,
+    string? ActualBehavior,
+    IReadOnlyList<string> ReproductionSteps,
+    IReadOnlyList<string> AffectedExamples,
+    string? Environment,
+    string? BusinessImpact,
+    IReadOnlyList<string> AttachmentFindings,
+    IReadOnlyList<string> InvestigationWarnings)
+{
+    public static StructuredTicketSummary Empty { get; } = new(null, null, null, [], [], null, null, [], []);
+}
+
 /// <summary>Trusted result available only after deterministic parsing and contract validation.</summary>
 public sealed record EvaluationResult(
     string EvaluationId,
@@ -102,7 +116,10 @@ public sealed record EvaluationResult(
     IReadOnlyList<EvaluationAmbiguity> Ambiguities,
     string EngineeringSummary,
     string ProviderIdentifier,
-    string ModelIdentifier);
+    string ModelIdentifier)
+{
+    public StructuredTicketSummary TicketSummary { get; init; } = StructuredTicketSummary.Empty;
+}
 
 public sealed record EvaluationProcessingResult(
     EvaluationProcessingStatus ProcessingStatus,

@@ -12,12 +12,14 @@ public interface IRunAuditLog
 {
     void Decision(Guid runId, string evaluationId, IntakeDecision? decision, EvaluationProcessingStatus status, ExecutionMode mode, int proposedMutationCount);
     void Audit(Guid runId, string evaluationId, bool succeeded, string? failureCategory);
+    void EvaluationCache(Guid runId, string evaluationId, bool succeeded, string? failureCategory);
 }
 
 public sealed class NullRunAuditLog : IRunAuditLog
 {
     public void Decision(Guid runId, string evaluationId, IntakeDecision? decision, EvaluationProcessingStatus status, ExecutionMode mode, int proposedMutationCount) { }
     public void Audit(Guid runId, string evaluationId, bool succeeded, string? failureCategory) { }
+    public void EvaluationCache(Guid runId, string evaluationId, bool succeeded, string? failureCategory) { }
 }
 
 public sealed record IntakeRunResult(
@@ -45,6 +47,7 @@ public sealed class IntakeRunService
     private readonly IAiCostAccountingService costAccounting;
     private readonly IWorkItemSource? workItemSource;
     private readonly IWorkItemWriter? workItemWriter;
+    private readonly IAnalysisCacheRepository analysisCache;
 
     public IntakeRunService(
         IEvidencePreprocessor preprocessor,
@@ -76,7 +79,8 @@ public sealed class IntakeRunService
         IRunAuditLog log,
         IAiCostAccountingService costAccounting,
         IWorkItemSource? workItemSource,
-        IWorkItemWriter? workItemWriter)
+        IWorkItemWriter? workItemWriter,
+        IAnalysisCacheRepository? analysisCache = null)
     {
         this.preprocessor = preprocessor;
         this.evaluationService = evaluationService;
@@ -87,6 +91,7 @@ public sealed class IntakeRunService
         this.costAccounting = costAccounting;
         this.workItemSource = workItemSource;
         this.workItemWriter = workItemWriter;
+        this.analysisCache = analysisCache ?? new NullAnalysisCacheRepository();
     }
 
     public async Task<IntakeRunResult> ExecuteAsync(
@@ -123,6 +128,23 @@ public sealed class IntakeRunService
         AuditActor triggeredBy,
         Guid? parentRunId,
         CancellationToken cancellationToken = default)
+        => await ExecuteAsync(workItem, configuration, triggerType, selectionReason, runId, eligibility,
+            savedQueryId, exclusionReason, triggeredBy, parentRunId,
+            AnalysisExecutionMode.NormalReuseEligible, cancellationToken);
+
+    public async Task<IntakeRunResult> ExecuteAsync(
+        RawWorkItem workItem,
+        DeploymentConfiguration configuration,
+        RunTriggerType triggerType,
+        string selectionReason,
+        Guid runId,
+        WorkItemEligibility eligibility,
+        Guid? savedQueryId,
+        string? exclusionReason,
+        AuditActor triggeredBy,
+        Guid? parentRunId,
+        AnalysisExecutionMode analysisExecutionMode,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(workItem);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -134,8 +156,59 @@ public sealed class IntakeRunService
 
         var evaluationId = Guid.NewGuid().ToString("D");
         var startedAt = clock.UtcNow.ToUniversalTime();
-        var evidence = await preprocessor.PrepareAsync(workItem, configuration.Profile.Processing, cancellationToken);
-        var evaluation = await evaluationService.EvaluateAsync(evidence, configuration, evaluationId, cancellationToken);
+        var evidenceRetentionDays = configuration.Profile.Audit.EvidenceRetentionDays <= 0
+            ? DeploymentConfigurationDefaults.EvidenceRetentionDays
+            : configuration.Profile.Audit.EvidenceRetentionDays;
+        var expiresAt = startedAt.AddDays(evidenceRetentionDays);
+        await analysisCache.DeleteExpiredAsync(startedAt, cancellationToken);
+        var preparation = new EvidencePreparationOptions(
+            configuration.Profile.Ado.OrganizationUrl.AbsoluteUri, configuration.Profile.Ado.Project,
+            analysisExecutionMode == AnalysisExecutionMode.ForceFresh, startedAt, expiresAt);
+        var semanticWorkItem = new RawWorkItem(
+            workItem.WorkItemId, workItem.Revision, workItem.WorkItemType, workItem.Title,
+            workItem.Fields.Where(field => AnalysisFingerprint.IsEvaluationRelevantField(field.ReferenceName)).ToArray(),
+            workItem.Description, workItem.DescriptionFormat,
+            workItem.Tags.Where(tag =>
+                !string.Equals(tag, configuration.Profile.IntakeState.ValidatedTag, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(tag, configuration.Profile.IntakeState.IncompleteTag, StringComparison.OrdinalIgnoreCase)).ToArray(),
+            workItem.Relations, workItem.Comments, workItem.Attachments, workItem.ChangedAtUtc);
+        var evidence = await preprocessor.PrepareAsync(
+            semanticWorkItem, configuration.Profile.Processing, preparation, cancellationToken);
+        var manifest = evidence.Attachments.Select(attachment => new AttachmentManifestItem(
+            attachment.Reference, attachment.FileName, attachment.SizeBytes, attachment.ContentSha256,
+            attachment.ContentType, attachment.ArtifactId, attachment.ProcessorIdentity, attachment.ProcessorVersion,
+            attachment.ProcessingStatus, attachment.CacheReused)).OrderBy(item => item.AttachmentId, StringComparer.Ordinal)
+            .ThenBy(item => item.FileName, StringComparer.Ordinal).ToArray();
+        var sourceFingerprint = AnalysisFingerprint.Source(evidence, configuration.Profile.IntakeState);
+        var manifestFingerprint = AnalysisFingerprint.Manifest(manifest);
+        var context = new AnalysisContextSnapshot(
+            Guid.NewGuid().ToString("D"), AnalysisContextVersions.Schema,
+            AnalysisContextVersions.NormalizedEvidence, evidence.WorkItemId, evidence.Revision,
+            preparation.Organization, preparation.Project, evidence, manifest, sourceFingerprint,
+            manifestFingerprint, AnalysisFingerprint.Evidence(sourceFingerprint, manifestFingerprint),
+            EvaluatorPrompt.Version, configuration.Profile.Identity.Id, configuration.Profile.Identity.Version,
+            configuration.Policy.Identity.Id, configuration.Policy.Identity.Version, configuration.PolicyFingerprint,
+            startedAt, expiresAt)
+        {
+            ProcessingWarnings = evidence.Attachments.SelectMany(item => item.Warnings)
+                .Concat(evidence.Attachments.Select(item => item.FailureCategory).OfType<string>())
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()
+        };
+        await analysisCache.SaveContextAsync(context, cancellationToken);
+        var equivalenceKey = AnalysisFingerprint.Evaluation(context, configuration);
+        var reusable = analysisExecutionMode == AnalysisExecutionMode.NormalReuseEligible
+            ? await analysisCache.GetEvaluationAsync(equivalenceKey, startedAt, cancellationToken)
+            : null;
+        var evaluation = reusable is null
+            ? await evaluationService.EvaluateAsync(evidence, configuration, evaluationId, cancellationToken)
+            : new EvaluationProcessingResult(EvaluationProcessingStatus.Completed,
+                reusable.Result with { EvaluationId = evaluationId }, null, 0)
+            {
+                TokenUsage = new TokenUsage(0, 0, 0),
+                ProviderReportedModel = reusable.ProviderReportedModel,
+                ProviderInteractions = [],
+                ProviderRequestIds = []
+            };
         var decision = decisionHandler.Decide(
             evaluation,
             workItem.Tags,
@@ -151,11 +224,20 @@ public sealed class IntakeRunService
         AiCostAccountingResult accounting;
         try
         {
-            accounting = await costAccounting.EstimateAsync(
-                configuration.Profile.Ai.Provider,
-                configuration.Profile.Ai.Model,
-                evaluation.ProviderInteractions,
-                cancellationToken);
+            accounting = reusable is not null
+                ? new AiCostAccountingResult(
+                    new EstimatedCost(0m, configuration.Profile.Ai.Pricing.FirstOrDefault()?.Currency ?? "USD")
+                    {
+                        Complete = true,
+                        PricedInteractions = 0,
+                        TotalInteractions = 0,
+                        PricingIdentity = "evaluation-reuse:no-new-ai-cost"
+                    }, [])
+                : await costAccounting.EstimateAsync(
+                    configuration.Profile.Ai.Provider,
+                    configuration.Profile.Ai.Model,
+                    evaluation.ProviderInteractions,
+                    cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -185,6 +267,8 @@ public sealed class IntakeRunService
         };
 
         var trusted = evaluation.Result;
+        var plan = trusted is null ? null : PlannedAdoMutation.Create(evidence.Revision,
+            decision.ProposedMutations, trusted, context.SnapshotId);
         var audit = new EvaluationAuditRecord(
             evaluationId, runId, evidence.WorkItemId, evidence.Revision, completedAt, selectionReason,
             configuration.Profile.Identity.Id, configuration.Policy.Identity.Id, configuration.Policy.Identity.Version,
@@ -213,6 +297,19 @@ public sealed class IntakeRunService
             TriggeredBy = triggeredBy,
             ParentRunId = parentRunId,
             AiInteractions = accounting.Interactions,
+            TicketSummary = trusted?.TicketSummary ?? StructuredTicketSummary.Empty,
+            AnalysisExecutionMode = analysisExecutionMode,
+            AnalysisContextId = context.SnapshotId,
+            SourceSemanticFingerprint = sourceFingerprint,
+            AttachmentManifestFingerprint = manifestFingerprint,
+            EvaluationEquivalenceKey = equivalenceKey,
+            EvaluationReused = reusable is not null,
+            OriginEvaluationId = reusable?.OriginEvaluationId,
+            OriginRunId = reusable?.OriginRunId,
+            AttachmentArtifactsReused = evidence.Attachments.Count(item => item.CacheReused),
+            AttachmentArtifactsRegenerated = evidence.Attachments.Count(item => !item.CacheReused && item.ArtifactId is not null),
+            PlannedMutation = plan,
+            ReusableEvidenceExpiresAtUtc = expiresAt,
             AttachmentProcessing = evidence.Attachments.Select(attachment => new AttachmentProcessingAuditRecord(
                 attachment.Reference,
                 attachment.FileName,
@@ -224,7 +321,15 @@ public sealed class IntakeRunService
                 attachment.Sampled,
                 attachment.PagesAvailable,
                 attachment.PagesInspected,
-                attachment.FailureCategory)).ToArray()
+                attachment.FailureCategory)
+            {
+                ContentSha256 = attachment.ContentSha256,
+                ArtifactId = attachment.ArtifactId,
+                ProcessorIdentity = attachment.ProcessorIdentity,
+                ProcessorVersion = attachment.ProcessorVersion,
+                CacheReused = attachment.CacheReused,
+                Warnings = attachment.Warnings
+            }).ToArray()
         };
 
         try
@@ -237,6 +342,24 @@ public sealed class IntakeRunService
             log.Audit(runId, evaluationId, false, "AuditPersistenceFailure");
             return new IntakeRunResult(runId, evaluationId, null, EvaluationProcessingStatus.Error,
                 configuration.Profile.Processing.ExecutionMode, [], [], [], "AuditPersistenceFailure");
+        }
+
+        if (reusable is null && evaluation.Result is not null &&
+            evaluation.ProcessingStatus == EvaluationProcessingStatus.Completed)
+        {
+            try
+            {
+                await analysisCache.SaveEvaluationAsync(new ReusableEvaluation(
+                    equivalenceKey, evaluationId, runId, evaluation.Result,
+                    evaluation.ProviderReportedModel, completedAt, expiresAt), cancellationToken);
+                log.EvaluationCache(runId, evaluationId, true, null);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // The durable run audit is authoritative. Cache persistence is an optimization and must
+                // not turn a successfully audited evaluation into a failed run or permit unsafe writes.
+                log.EvaluationCache(runId, evaluationId, false, "EvaluationCachePersistenceFailure");
+            }
         }
 
         if (configuration.Profile.Processing.ExecutionMode == ExecutionMode.DryRun ||
@@ -280,7 +403,8 @@ public sealed class IntakeRunService
             // History is required before any write: a repository failure must not turn into
             // duplicate comments or an un-auditable live enforcement attempt.
             duplicateComment = commentMutation is not null && await IsDuplicateCommentAsync(
-                current.WorkItemId, evaluation.Result!, configuration.Profile.Identity.Id, cancellationToken);
+                current.WorkItemId, evaluation.Result!, currentDecision.ProposedMutations, evidence,
+                configuration.Profile.Identity.Id, cancellationToken);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -426,14 +550,24 @@ public sealed class IntakeRunService
         }
     }
 
-    private async Task<bool> IsDuplicateCommentAsync(string workItemId, EvaluationResult result, string profileId, CancellationToken cancellationToken)
+    private async Task<bool> IsDuplicateCommentAsync(
+        string workItemId,
+        EvaluationResult result,
+        IReadOnlyList<ProposedMutation> proposed,
+        EvaluationEvidence evidence,
+        string profileId,
+        CancellationToken cancellationToken)
     {
         var history = await auditRepository.GetWorkItemHistoryAsync(workItemId, profileId, cancellationToken);
+        var intendedComment = ValidatorCommentMarker.Strip(
+            proposed.SingleOrDefault(item => item.Type == ProposedMutationType.PostComment)?.Body);
         // Audit, not ADO prose or manually managed tags, is authoritative for validator history.
         return history.Any(item => item.Decision == result.Decision &&
             string.Equals(item.PolicyFingerprint, result.PolicyFingerprint, StringComparison.Ordinal) &&
             item.MutationOutcomes.Any(outcome => outcome is { Type: ProposedMutationType.PostComment, Succeeded: true }) &&
-            (result.Decision == IntakeDecision.Pass
+            (item.PlannedMutation?.ExactCommentBody is not null
+                ? string.Equals(ValidatorCommentMarker.Strip(item.PlannedMutation.ExactCommentBody), intendedComment, StringComparison.Ordinal)
+                : result.Decision == IntakeDecision.Pass
                 ? string.Equals(PassSignature(item), PassSignature(result), StringComparison.Ordinal)
                 : string.Equals(DeficiencySignature(item), DeficiencySignature(result), StringComparison.Ordinal)));
     }

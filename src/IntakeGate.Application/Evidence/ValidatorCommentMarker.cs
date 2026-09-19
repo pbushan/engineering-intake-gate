@@ -26,6 +26,10 @@ public static partial class ValidatorCommentMarker
                evaluationId != Guid.Empty;
     }
 
+    public static string Strip(string? content) => string.IsNullOrEmpty(content)
+        ? string.Empty
+        : MarkerRegex().Replace(content, string.Empty).TrimEnd();
+
     [GeneratedRegex(
         @"<!--\s*engineering-intake-gate:validatorVersion=1;evaluationId=(?<evaluationId>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*-->",
         RegexOptions.CultureInvariant,

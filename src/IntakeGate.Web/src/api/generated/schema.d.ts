@@ -2087,6 +2087,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/diagnostics/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/diagnostics/runtime-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ado/credential": {
         parameters: {
             query?: never;
@@ -3023,112 +3093,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/ai/pricing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AiModelPricingResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiErrorResponse"];
-                    };
-                };
-                /** @description Conflict */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ai/pricing/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AiModelPricingResponse"];
-                    };
-                };
-                /** @description Conflict */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/ai/settings": {
         parameters: {
             query?: never;
@@ -3287,6 +3251,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ai/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AiModelPricingResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ai/pricing/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AiModelPricingResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3314,18 +3384,6 @@ export interface components {
             models: components["schemas"]["AiModelDescriptor"][];
             error: null | string;
         };
-        AiProfileResponse: {
-            provider: string;
-            model: string;
-            /** Format: int32 */
-            timeoutSeconds: number | string;
-            pricing: components["schemas"]["ModelPricingResponse"][];
-        };
-        AiRuntimeRequest: {
-            /** Format: int32 */
-            timeoutSeconds: null | number | string;
-            pricing: null | components["schemas"]["ModelPricingRequest"][];
-        };
         AiModelPricingResponse: {
             provider: string;
             model: string;
@@ -3351,6 +3409,36 @@ export interface components {
             expiresAtUtc: null | string;
             sourceKind: null | string;
         };
+        AiObservabilityResponse: {
+            configuredProvider: string;
+            configuredModel: string;
+            providerReportedModel: null | string;
+            promptVersion: string;
+            /** Format: int32 */
+            runInteractions: number | string;
+            /** Format: int32 */
+            attachmentArtifactsReused: number | string;
+            /** Format: int32 */
+            attachmentArtifactsRegenerated: number | string;
+            evaluationReused: boolean;
+            originEvaluationId: null | string;
+            /** Format: uuid */
+            originRunId: null | string;
+            executionMode: components["schemas"]["AnalysisExecutionMode"];
+            providerRequestIds?: string[];
+        };
+        AiProfileResponse: {
+            provider: string;
+            model: string;
+            /** Format: int32 */
+            timeoutSeconds: number | string;
+            pricing: components["schemas"]["ModelPricingResponse"][];
+        };
+        AiRuntimeRequest: {
+            /** Format: int32 */
+            timeoutSeconds: null | number | string;
+            pricing: null | components["schemas"]["ModelPricingRequest"][];
+        };
         AiSettingsResponse: {
             profileConfigured: boolean;
             provider: null | string;
@@ -3362,10 +3450,36 @@ export interface components {
             restartRequired: boolean;
             activationMessage: string;
         };
+        AnalysisContextResponse: {
+            snapshotId: string;
+            schemaVersion: string;
+            normalizedEvidenceSchemaVersion: string;
+            evaluatedRevision: string;
+            sourceFields: string[];
+            /** Format: int32 */
+            humanCommentsIncluded: number | string;
+            /** Format: int32 */
+            humanCommentsAvailable: number | string;
+            /** Format: int32 */
+            generatedCommentsExcluded: number | string;
+            /** Format: int32 */
+            attachmentCount: number | string;
+            truncationOccurred: boolean;
+            redactionOccurred: boolean;
+            /** Format: int32 */
+            redactionCount: number | string;
+            processingWarnings: string[];
+            /** Format: date-time */
+            expiresAtUtc: string;
+        };
+        /** @enum {unknown} */
+        AnalysisExecutionMode: "normalReuseEligible" | "forceFresh";
         AnalyzeWorkItemRequest: {
             /** Format: int32 */
             workItemId: null | number | string;
             workItemUrl: null | string;
+            /** @default false */
+            forceFresh: boolean;
         };
         AnalyzeWorkItemResponse: {
             /** Format: uuid */
@@ -3382,6 +3496,20 @@ export interface components {
             configurationGenerationId: number | string;
             detailUrl: string;
             itemDetailUrl: null | string;
+        };
+        AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            instanceId: string;
+            /** Format: date-time */
+            startedAtUtc: string;
+            applicationVersion: null | string;
+        };
+        AnonymousTypeOfintAndIEnumerableOfAnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring: {
+            /** Format: int32 */
+            count: number | string;
+            records: null | components["schemas"]["AnonymousTypeOfGuidAndGuidAndDateTimeOffsetAndstring"][];
         };
         AnonymousTypeOfstring: {
             status: null | string;
@@ -3403,6 +3531,8 @@ export interface components {
             version: string;
             environment: string;
         };
+        /** @enum {unknown} */
+        AttachmentInspectionMode: "text" | "structuredText" | "pdfText" | "image" | "none";
         AttachmentLimitsRequest: {
             /** Format: int32 */
             maximumCount: null | number | string;
@@ -3439,6 +3569,29 @@ export interface components {
             /** Format: int32 */
             maximumStructuredTextDepth: number | string;
         };
+        AttachmentProcessingResponse: {
+            attachmentId: string;
+            fileName: string;
+            mediaType: null | string;
+            /** Format: int64 */
+            sizeBytes: null | number | string;
+            status: components["schemas"]["AttachmentProcessingStatus"];
+            inspectionMode: components["schemas"]["AttachmentInspectionMode"];
+            processorIdentity: null | string;
+            processorVersion: null | string;
+            cacheReused: boolean;
+            truncated: boolean;
+            sampled: boolean;
+            /** Format: int32 */
+            pagesAvailable: null | number | string;
+            /** Format: int32 */
+            pagesInspected: null | number | string;
+            failureCategory: null | string;
+            warnings: string[];
+            normalizedEvidencePreview: string;
+        };
+        /** @enum {unknown} */
+        AttachmentProcessingStatus: "processed" | "partial" | "unsupported" | "unavailable" | "error";
         /** @enum {unknown} */
         AuditActorDisplayType: "user" | "system" | "unknown";
         AuditActorResponse: {
@@ -3450,10 +3603,18 @@ export interface components {
         AuditRequest: {
             /** Format: int32 */
             retentionDays: null | number | string;
+            /** Format: int32 */
+            evidenceRetentionDays?: null | number | string;
+            /** Format: int32 */
+            maximumSelectedVideoScreenshots?: null | number | string;
         };
         AuditResponse: {
             /** Format: int32 */
             retentionDays: number | string;
+            /** Format: int32 */
+            evidenceRetentionDays: number | string;
+            /** Format: int32 */
+            maximumSelectedVideoScreenshots: number | string;
         };
         AzureDevOpsProfileResponse: {
             organizationUrl: string;
@@ -3824,6 +3985,10 @@ export interface components {
         OnboardingAudit: {
             /** Format: int32 */
             retentionDays: null | number | string;
+            /** Format: int32 */
+            evidenceRetentionDays?: null | number | string;
+            /** Format: int32 */
+            maximumSelectedVideoScreenshots?: null | number | string;
         };
         OnboardingContentLimits: {
             /** Format: int32 */
@@ -3924,6 +4089,15 @@ export interface components {
         OperationalDecisionState: "pass" | "fail" | "error" | "notEligible";
         /** @enum {unknown} */
         OperationalRunStatus: "running" | "completed" | "completedWithErrors" | "error";
+        PlannedAdoMutationResponse: {
+            planId: string;
+            evaluatedRevision: string;
+            tagAdditions: string[];
+            tagRemovals: string[];
+            exactCommentBody: null | string;
+            futureDerivedAttachmentUploads: string[];
+            contentFingerprint: string;
+        };
         PolicyCriterionRequest: {
             id: null | string;
             displayName: null | string;
@@ -4124,6 +4298,14 @@ export interface components {
             tokenUsage: null | components["schemas"]["TokenUsageResponse"];
             estimatedCost: null | components["schemas"]["EstimatedCostResponse"];
             errors: components["schemas"]["SafeOperationalErrorResponse"][];
+            ticketSummary?: components["schemas"]["StructuredTicketSummaryResponse"];
+            analysisContext?: null | components["schemas"]["AnalysisContextResponse"];
+            attachmentProcessing?: components["schemas"]["AttachmentProcessingResponse"][];
+            ai?: components["schemas"]["AiObservabilityResponse"];
+            plannedAdoMutation?: null | components["schemas"]["PlannedAdoMutationResponse"];
+            reusableEvidenceAvailable?: boolean;
+            /** Format: date-time */
+            reusableEvidenceExpiresAtUtc?: null | string;
         };
         RunItemSummaryResponse: {
             evaluationId: string;
@@ -4266,6 +4448,17 @@ export interface components {
             lastVisitedStep: null | string;
             /** Format: date-time */
             progressUpdatedAtUtc: null | string;
+        };
+        StructuredTicketSummaryResponse: {
+            issueSummary: null | string;
+            expectedBehavior: null | string;
+            actualBehavior: null | string;
+            reproductionSteps: string[];
+            affectedExamples: string[];
+            environment: null | string;
+            businessImpact: null | string;
+            attachmentFindings: string[];
+            investigationWarnings: string[];
         };
         SystemHealthResponse: {
             /** Format: date-time */

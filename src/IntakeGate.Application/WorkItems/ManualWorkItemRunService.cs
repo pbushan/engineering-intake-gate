@@ -1,6 +1,7 @@
 using IntakeGate.Application.Audit;
 using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Evaluation;
+using IntakeGate.Application.Evidence;
 using IntakeGate.Application.Persistence;
 using IntakeGate.Application.Time;
 
@@ -37,6 +38,15 @@ public sealed class ManualWorkItemRunService(
         int workItemId,
         DeploymentConfiguration configuration,
         AuditActor triggeredBy,
+        CancellationToken cancellationToken = default)
+        => await ExecuteAsync(workItemId, configuration, triggeredBy,
+            AnalysisExecutionMode.NormalReuseEligible, cancellationToken);
+
+    public async Task<ManualWorkItemRunResult> ExecuteAsync(
+        int workItemId,
+        DeploymentConfiguration configuration,
+        AuditActor triggeredBy,
+        AnalysisExecutionMode analysisExecutionMode,
         CancellationToken cancellationToken = default)
     {
         if (workItemId <= 0) throw new ArgumentOutOfRangeException(nameof(workItemId), "Work-item ID must be positive.");
@@ -99,6 +109,7 @@ public sealed class ManualWorkItemRunService(
             null,
             triggeredBy,
             null,
+            analysisExecutionMode,
             cancellationToken);
 
         return new ManualWorkItemRunResult(

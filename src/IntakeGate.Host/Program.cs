@@ -127,6 +127,8 @@ if (string.IsNullOrWhiteSpace(databaseOptions.Path))
 
 var databaseMigrator = new SqliteDatabaseMigrator(databaseOptions.Path);
 await databaseMigrator.MigrateAsync();
+var analysisCacheRepository = new SqliteAnalysisCacheRepository(databaseOptions.Path);
+await analysisCacheRepository.DeleteExpiredAsync(DateTimeOffset.UtcNow);
 var deploymentConfigurationValidator = new DeploymentConfigurationValidator();
 var singletonProfileRepository = new SqliteSingletonProfileRepository(databaseOptions.Path, deploymentConfigurationValidator);
 
@@ -349,6 +351,7 @@ builder.Services.AddSingleton<IAuditRepository>(services =>
     var options = services.GetRequiredService<IOptions<OperationalDatabaseOptions>>().Value;
     return new SqliteAuditRepository(options.Path);
 });
+builder.Services.AddSingleton<IAnalysisCacheRepository>(analysisCacheRepository);
 builder.Services.AddSingleton<IControlPlaneAuditRepository>(services =>
     (IControlPlaneAuditRepository)services.GetRequiredService<IAuditRepository>());
 builder.Services.AddSingleton<IControlPlaneAuditWriter>(services =>

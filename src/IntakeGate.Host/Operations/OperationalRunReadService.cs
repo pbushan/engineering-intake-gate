@@ -4,14 +4,23 @@ using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Decision;
 using IntakeGate.Application.Discovery;
 using IntakeGate.Application.Evaluation;
+using IntakeGate.Application.Evidence;
+using IntakeGate.Application.Time;
 using IntakeGate.Application.WorkItems;
 
 namespace IntakeGate.Host.Operations;
 
 public sealed class OperationalRunReadService(
     IOperationalAuditReader reader,
-    IRuntimeConfigurationGenerationRepository generations)
+    IRuntimeConfigurationGenerationRepository generations,
+    IAnalysisCacheRepository analysisCache,
+    IClock clock)
 {
+    public OperationalRunReadService(
+        IOperationalAuditReader reader,
+        IRuntimeConfigurationGenerationRepository generations)
+        : this(reader, generations, new NullAnalysisCacheRepository(), new SystemClock()) { }
+
     public async Task<RunHistoryPageResponse> ListAsync(
         OperationalRunQuery query,
         CancellationToken cancellationToken)
@@ -55,7 +64,9 @@ public sealed class OperationalRunReadService(
         var evaluation = await reader.GetEvaluationAsync(runId, evaluationId, cancellationToken);
         if (evaluation is null) return null;
         var generation = await GenerationAsync(evaluation.ConfigurationGenerationId, cancellationToken);
-        return ItemDetail(evaluation, generation);
+        var context = evaluation.AnalysisContextId is null ? null :
+            await analysisCache.GetContextAsync(evaluation.AnalysisContextId, clock.UtcNow, cancellationToken);
+        return ItemDetail(evaluation, generation, context);
     }
 
     private static RunSummaryResponse Summary(OperationalRunAuditEnvelope envelope)
@@ -130,7 +141,8 @@ public sealed class OperationalRunReadService(
 
     private static RunItemDetailResponse ItemDetail(
         EvaluationAuditRecord evaluation,
-        RuntimeConfigurationGeneration? generation)
+        RuntimeConfigurationGeneration? generation,
+        AnalysisContextSnapshot? context)
     {
         var decision = Decision(evaluation);
         return new RunItemDetailResponse(
@@ -167,7 +179,57 @@ public sealed class OperationalRunReadService(
             evaluation.MateriallyChanged,
             Token(evaluation.TokenUsage),
             Cost(evaluation.EstimatedCost),
-            EvaluationErrors(evaluation));
+            EvaluationErrors(evaluation))
+        {
+            TicketSummary = Summary(evaluation.TicketSummary, evaluation.EngineeringSummary),
+            AnalysisContext = context is null ? null : Context(context),
+            AttachmentProcessing = evaluation.AttachmentProcessing.Select(item => Attachment(item, context)).ToArray(),
+            Ai = new AiObservabilityResponse(
+                evaluation.ProviderIdentifier, evaluation.ModelIdentifier, evaluation.ProviderReportedModel,
+                evaluation.PromptVersion, evaluation.AiInteractions.Count, evaluation.AttachmentArtifactsReused,
+                evaluation.AttachmentArtifactsRegenerated, evaluation.EvaluationReused,
+                evaluation.OriginEvaluationId, evaluation.OriginRunId, evaluation.AnalysisExecutionMode)
+            {
+                ProviderRequestIds = evaluation.ProviderRequestIds
+            },
+            PlannedAdoMutation = evaluation.PlannedMutation is null ? null : new PlannedAdoMutationResponse(
+                evaluation.PlannedMutation.PlanId, evaluation.PlannedMutation.EvaluatedRevision,
+                evaluation.PlannedMutation.TagAdditions, evaluation.PlannedMutation.TagRemovals,
+                evaluation.PlannedMutation.ExactCommentBody, evaluation.PlannedMutation.FutureDerivedAttachmentUploads,
+                evaluation.PlannedMutation.ContentFingerprint),
+            ReusableEvidenceAvailable = context is not null,
+            ReusableEvidenceExpiresAtUtc = evaluation.ReusableEvidenceExpiresAtUtc
+        };
+    }
+
+    private static StructuredTicketSummaryResponse Summary(StructuredTicketSummary summary, string? legacy) =>
+        summary == StructuredTicketSummary.Empty && !string.IsNullOrWhiteSpace(legacy)
+            ? StructuredTicketSummaryResponse.Empty with { IssueSummary = legacy }
+            : new(summary.IssueSummary, summary.ExpectedBehavior, summary.ActualBehavior,
+                summary.ReproductionSteps, summary.AffectedExamples, summary.Environment,
+                summary.BusinessImpact, summary.AttachmentFindings, summary.InvestigationWarnings);
+
+    private static AnalysisContextResponse Context(AnalysisContextSnapshot context) => new(
+        context.SnapshotId, context.SchemaVersion, context.NormalizedEvidenceSchemaVersion,
+        context.EvaluatedRevision, context.Evidence.Fields.Select(item => item.ReferenceName).ToArray(),
+        context.Evidence.Processing.IncludedCommentCount,
+        context.Evidence.Processing.AvailableHumanCommentCount,
+        context.Evidence.Processing.ExcludedValidatorCommentCount,
+        context.Evidence.Attachments.Count, context.Evidence.Processing.TruncationOccurred,
+        context.Evidence.Redaction.RedactionOccurred, context.Evidence.Redaction.RedactionCount,
+        context.ProcessingWarnings, context.ExpiresAtUtc);
+
+    private static AttachmentProcessingResponse Attachment(
+        AttachmentProcessingAuditRecord item, AnalysisContextSnapshot? context)
+    {
+        var evidence = context?.Evidence.Attachments.FirstOrDefault(candidate =>
+            string.Equals(candidate.Reference, item.AttachmentId, StringComparison.Ordinal));
+        var preview = evidence?.ExtractedEvidence ?? string.Empty;
+        if (preview.Length > 2_000) preview = preview[..2_000] + "…";
+        return new AttachmentProcessingResponse(item.AttachmentId, item.Name, item.MediaType,
+            item.OriginalSize, item.ProcessingStatus, item.InspectionMode, item.ProcessorIdentity,
+            item.ProcessorVersion, item.CacheReused, item.Truncated, item.Sampled,
+            item.PagesAvailable, item.PagesInspected, item.FailureCategory, item.Warnings, preview);
     }
 
     private async Task<RuntimeConfigurationGeneration?> GenerationAsync(

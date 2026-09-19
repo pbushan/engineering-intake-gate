@@ -36,6 +36,8 @@ public sealed class EvaluationContractTests
         Assert.Contains("Material ambiguity defaults to `FAIL`", EvaluatorPrompt.Content, StringComparison.Ordinal);
         Assert.Contains("Ground every factual assertion", EvaluatorPrompt.Content, StringComparison.Ordinal);
         Assert.Contains("truncated, omitted, unsupported, unavailable, or not inspected", EvaluatorPrompt.Content, StringComparison.Ordinal);
+        Assert.Contains("unknown scalar fields return null", EvaluatorPrompt.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("unknown list fields return an empty array", EvaluatorPrompt.Content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -52,6 +54,7 @@ public sealed class EvaluationContractTests
         Assert.Equal(EvaluationProcessingStatus.Completed, result.ProcessingStatus);
         Assert.Equal(expected, result.Outcome);
         Assert.NotNull(result.Result);
+        Assert.False(string.IsNullOrWhiteSpace(result.Result.TicketSummary.IssueSummary));
     }
 
     [Theory]
@@ -102,9 +105,9 @@ public sealed class EvaluationContractTests
         var unknownDecision = new FakeIntakeAiProvider(Enumerable.Repeat<Func<EvaluationRequest, AiProviderResponse>>(
             request => Response(request, "MAYBE", [], [], [], []), 3));
         var unsupportedSchema = new FakeIntakeAiProvider(Enumerable.Repeat<Func<EvaluationRequest, AiProviderResponse>>(
-            request => AiProviderResponse.Success(JsonSerializer.Serialize(new { schemaVersion = "intake-evaluation-v999", evaluationId = request.EvaluationId, decision = "PASS", applicableCriteria = Array.Empty<string>(), satisfiedCriteria = Array.Empty<string>(), deficiencies = Array.Empty<object>(), ambiguities = Array.Empty<object>(), engineeringSummary = "Summary." })), 3));
+            request => AiProviderResponse.Success(JsonSerializer.Serialize(new { schemaVersion = "intake-evaluation-v999", evaluationId = request.EvaluationId, decision = "PASS", applicableCriteria = Array.Empty<string>(), satisfiedCriteria = Array.Empty<string>(), deficiencies = Array.Empty<object>(), ambiguities = Array.Empty<object>(), engineeringSummary = "Summary.", ticketSummary = Summary() })), 3));
         var forbidden = new FakeIntakeAiProvider(Enumerable.Repeat<Func<EvaluationRequest, AiProviderResponse>>(
-            request => AiProviderResponse.Success(JsonSerializer.Serialize(new { schemaVersion = "intake-evaluation-v1", evaluationId = request.EvaluationId, decision = "PASS", applicableCriteria = Array.Empty<string>(), satisfiedCriteria = Array.Empty<string>(), deficiencies = Array.Empty<object>(), ambiguities = Array.Empty<object>(), engineeringSummary = "Summary.", rootCause = "forbidden" })), 3));
+            request => AiProviderResponse.Success(JsonSerializer.Serialize(new { schemaVersion = "intake-evaluation-v2", evaluationId = request.EvaluationId, decision = "PASS", applicableCriteria = Array.Empty<string>(), satisfiedCriteria = Array.Empty<string>(), deficiencies = Array.Empty<object>(), ambiguities = Array.Empty<object>(), engineeringSummary = "Summary.", ticketSummary = Summary(), rootCause = "forbidden" })), 3));
 
         Assert.Equal("MalformedStructuredResponse", (await Evaluate(malformed)).Failure!.Category);
         Assert.Equal("MalformedStructuredResponse", (await Evaluate(missing)).Failure!.Category);
@@ -181,6 +184,18 @@ public sealed class EvaluationContractTests
 
     private static object Deficiency(string criterion = "problem_statement") => new { criterionId = criterion, reason = "Evidence is insufficient.", requiredSupportAction = "Provide the missing context." };
     private static object Ambiguity() => new { criterionId = (string?)null, description = "Evidence is unclear.", requiredClarification = "Clarify the missing context." };
+    private static object Summary() => new
+    {
+        issueSummary = "Known evidence summary.",
+        expectedBehavior = (string?)null,
+        actualBehavior = (string?)null,
+        reproductionSteps = Array.Empty<string>(),
+        affectedExamples = Array.Empty<string>(),
+        environment = (string?)null,
+        businessImpact = (string?)null,
+        attachmentFindings = Array.Empty<string>(),
+        investigationWarnings = Array.Empty<string>()
+    };
 
     private static DeploymentConfiguration Configuration(int retries = 2) => new(
         new DeploymentProfile(

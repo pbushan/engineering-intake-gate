@@ -16,6 +16,8 @@ public sealed class DeploymentConfigurationValidatorTests
         Assert.Equal("openai", configuration.Profile.Ai.Provider);
         Assert.Equal("USD", configuration.Profile.Ai.Pricing.Single().Currency);
         Assert.Equal(ExecutionMode.DryRun, configuration.Profile.Processing.ExecutionMode);
+        Assert.Equal(30, configuration.Profile.Audit.EvidenceRetentionDays);
+        Assert.Equal(6, configuration.Profile.Audit.MaximumSelectedVideoScreenshots);
         Assert.Equal("policy-id", configuration.Policy.Identity.Id);
         Assert.StartsWith("sha256:", configuration.PolicyFingerprint, StringComparison.Ordinal);
     }
@@ -51,6 +53,18 @@ public sealed class DeploymentConfigurationValidatorTests
         Assert.Contains("intakeState.validatedTag and intakeState.incompleteTag must be different", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CFG_001_EvidenceRetentionAndFutureScreenshotLimitsAreBounded()
+    {
+        var profile = ValidProfile(evidenceRetentionDays: 3651, maximumSelectedVideoScreenshots: 7);
+
+        var error = Assert.Throws<ConfigurationValidationException>(() =>
+            new DeploymentConfigurationValidator().Validate(profile, ValidPolicy()));
+
+        Assert.Contains("audit.evidenceRetentionDays must be 3650 or less", error.Message, StringComparison.Ordinal);
+        Assert.Contains("audit.maximumSelectedVideoScreenshots must be 6 or less", error.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("synthetic-pat-value!", "TEST_AI_KEY")]
     [InlineData("TEST_ADO_PAT", "sk-synthetic-value!")]
@@ -73,7 +87,9 @@ public sealed class DeploymentConfigurationValidatorTests
         string validatedTag = "VALID",
         string incompleteTag = "INCOMPLETE",
         string adoReference = "TEST_ADO_PAT",
-        string aiReference = "TEST_AI_KEY") => new()
+        string aiReference = "TEST_AI_KEY",
+        int? evidenceRetentionDays = null,
+        int? maximumSelectedVideoScreenshots = null) => new()
         {
             Profile = new ConfigurationIdentityInput { Id = " profile-id ", Version = " 1 " },
             IntakePolicy = new PolicyReferenceInput { Path = "intake-policy.yaml", Url = "https://example.invalid/policy" },
@@ -123,7 +139,12 @@ public sealed class DeploymentConfigurationValidatorTests
                     MaximumPdfPages = 10
                 }
             },
-            Audit = new AuditInput { RetentionDays = 90 },
+            Audit = new AuditInput
+            {
+                RetentionDays = 90,
+                EvidenceRetentionDays = evidenceRetentionDays,
+                MaximumSelectedVideoScreenshots = maximumSelectedVideoScreenshots
+            },
             Exclusions =
         [
             new ExclusionInput { Id = "excluded", Field = "Example.State", Operator = "equalsAny", Values = ["Excluded"] }

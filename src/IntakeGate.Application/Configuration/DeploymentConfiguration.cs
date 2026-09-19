@@ -7,6 +7,8 @@ public static class DeploymentConfigurationDefaults
     public const long MaximumImageBytes = 5_242_880;
     public const int MaximumCsvRows = 1_000;
     public const int MaximumStructuredTextDepth = 32;
+    public const int EvidenceRetentionDays = 30;
+    public const int MaximumSelectedVideoScreenshots = 6;
 }
 
 public sealed record DeploymentConfiguration(DeploymentProfile Profile, IntakePolicy Policy, string PolicyFingerprint)
@@ -84,7 +86,11 @@ public sealed record AttachmentLimits(
     int MaximumCsvRows = DeploymentConfigurationDefaults.MaximumCsvRows,
     int MaximumStructuredTextDepth = DeploymentConfigurationDefaults.MaximumStructuredTextDepth);
 
-public sealed record AuditConfiguration(int RetentionDays);
+public sealed record AuditConfiguration(int RetentionDays)
+{
+    public int EvidenceRetentionDays { get; init; } = DeploymentConfigurationDefaults.EvidenceRetentionDays;
+    public int MaximumSelectedVideoScreenshots { get; init; } = DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots;
+}
 
 public sealed record ExclusionRule(string Id, string Field, ExclusionOperator Operator, IReadOnlyList<string> Values);
 

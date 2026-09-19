@@ -15,4 +15,9 @@ public sealed class StructuredRunAuditLog(ILogger<StructuredRunAuditLog> logger)
         logger.LogInformation(
             "Audit persistence completed. Event={EventName} Stage={Stage} RunId={RunId} EvaluationId={EvaluationId} AuditSucceeded={AuditSucceeded} FailureCategory={FailureCategory}",
             "AuditPersisted", "AUDIT", runId, evaluationId, succeeded, failureCategory);
+
+    public void EvaluationCache(Guid runId, string evaluationId, bool succeeded, string? failureCategory) =>
+        logger.LogInformation(
+            "Evaluation cache persistence completed. Event={EventName} Stage={Stage} RunId={RunId} EvaluationId={EvaluationId} CacheSucceeded={CacheSucceeded} FailureCategory={FailureCategory}",
+            "EvaluationCachePersisted", "CACHE", runId, evaluationId, succeeded, failureCategory);
 }

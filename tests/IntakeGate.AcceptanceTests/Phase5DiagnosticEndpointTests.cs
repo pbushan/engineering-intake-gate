@@ -100,7 +100,7 @@ public sealed class Phase5DiagnosticEndpointTests
         Assert.StartsWith("sha256:", evaluation.GetProperty("policyFingerprint").GetString(), StringComparison.Ordinal);
         Assert.Equal("openai", evaluation.GetProperty("providerIdentifier").GetString());
         Assert.Equal("example-model", evaluation.GetProperty("modelIdentifier").GetString());
-        Assert.Equal("intake-evaluator-v1", evaluation.GetProperty("promptVersion").GetString());
+        Assert.Equal("intake-evaluator-v2", evaluation.GetProperty("promptVersion").GetString());
         Assert.Equal("pass", evaluation.GetProperty("decision").GetString());
         Assert.NotEmpty(evaluation.GetProperty("applicableCriteria").EnumerateArray());
         Assert.NotEmpty(evaluation.GetProperty("satisfiedCriteria").EnumerateArray());

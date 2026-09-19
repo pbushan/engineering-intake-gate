@@ -10,7 +10,24 @@ public sealed record UntrustedEvaluationResponse(
     IReadOnlyList<string> SatisfiedCriteria,
     IReadOnlyList<UntrustedEvaluationDeficiency> Deficiencies,
     IReadOnlyList<UntrustedEvaluationAmbiguity> Ambiguities,
-    string EngineeringSummary);
+    string EngineeringSummary)
+{
+    public UntrustedStructuredTicketSummary TicketSummary { get; init; } = UntrustedStructuredTicketSummary.Empty;
+}
+
+public sealed record UntrustedStructuredTicketSummary(
+    string? IssueSummary,
+    string? ExpectedBehavior,
+    string? ActualBehavior,
+    IReadOnlyList<string> ReproductionSteps,
+    IReadOnlyList<string> AffectedExamples,
+    string? Environment,
+    string? BusinessImpact,
+    IReadOnlyList<string> AttachmentFindings,
+    IReadOnlyList<string> InvestigationWarnings)
+{
+    public static UntrustedStructuredTicketSummary Empty { get; } = new(null, null, null, [], [], null, null, [], []);
+}
 
 public sealed record UntrustedEvaluationDeficiency(string CriterionId, string Reason, string RequiredSupportAction);
 public sealed record UntrustedEvaluationAmbiguity(string? CriterionId, string Description, string RequiredClarification);
@@ -18,7 +35,9 @@ public sealed record UntrustedEvaluationAmbiguity(string? CriterionId, string De
 public sealed class EvaluationResponseParser
 {
     private static readonly HashSet<string> TopLevelProperties =
-        ["schemaVersion", "evaluationId", "decision", "applicableCriteria", "satisfiedCriteria", "deficiencies", "ambiguities", "engineeringSummary"];
+        ["schemaVersion", "evaluationId", "decision", "applicableCriteria", "satisfiedCriteria", "deficiencies", "ambiguities", "engineeringSummary", "ticketSummary"];
+    private static readonly HashSet<string> SummaryProperties =
+        ["issueSummary", "expectedBehavior", "actualBehavior", "reproductionSteps", "affectedExamples", "environment", "businessImpact", "attachmentFindings", "investigationWarnings"];
     private static readonly HashSet<string> DeficiencyProperties = ["criterionId", "reason", "requiredSupportAction"];
     private static readonly HashSet<string> AmbiguityProperties = ["criterionId", "description", "requiredClarification"];
 
@@ -43,13 +62,34 @@ public sealed class EvaluationResponseParser
                 !TryDeficiencies(root, out var deficiencies) ||
                 !TryAmbiguities(root, out var ambiguities)) return false;
 
-            response = new UntrustedEvaluationResponse(schemaVersion, evaluationId, decision, applicable, satisfied, deficiencies, ambiguities, summary);
+            if (!root.TryGetProperty("ticketSummary", out var summaryNode) || !TrySummary(summaryNode, out var ticketSummary)) return false;
+            response = new UntrustedEvaluationResponse(schemaVersion, evaluationId, decision, applicable, satisfied, deficiencies, ambiguities, summary)
+            {
+                TicketSummary = ticketSummary
+            };
             return true;
         }
         catch (JsonException)
         {
             return false;
         }
+    }
+
+    private static bool TrySummary(JsonElement node, out UntrustedStructuredTicketSummary summary)
+    {
+        summary = UntrustedStructuredTicketSummary.Empty;
+        if (node.ValueKind != JsonValueKind.Object || !HasExactlyAllowedProperties(node, SummaryProperties) ||
+            !TryOptionalString(node, "issueSummary", out var issue) ||
+            !TryOptionalString(node, "expectedBehavior", out var expected) ||
+            !TryOptionalString(node, "actualBehavior", out var actual) ||
+            !TryStringArray(node, "reproductionSteps", out var steps, allowEmpty: true) ||
+            !TryStringArray(node, "affectedExamples", out var examples, allowEmpty: true) ||
+            !TryOptionalString(node, "environment", out var environment) ||
+            !TryOptionalString(node, "businessImpact", out var impact) ||
+            !TryStringArray(node, "attachmentFindings", out var findings, allowEmpty: true) ||
+            !TryStringArray(node, "investigationWarnings", out var warnings, allowEmpty: true)) return false;
+        summary = new(issue, expected, actual, steps, examples, environment, impact, findings, warnings);
+        return true;
     }
 
     private static bool TryDeficiencies(JsonElement root, out IReadOnlyList<UntrustedEvaluationDeficiency> items)
@@ -59,6 +99,7 @@ public sealed class EvaluationResponseParser
         var result = new List<UntrustedEvaluationDeficiency>();
         foreach (var item in array.EnumerateArray())
         {
+            if (result.Count >= 50) return false;
             if (item.ValueKind != JsonValueKind.Object || !HasExactlyAllowedProperties(item, DeficiencyProperties) ||
                 !TryString(item, "criterionId", out var id) || !TryString(item, "reason", out var reason) ||
                 !TryString(item, "requiredSupportAction", out var action)) return false;
@@ -75,6 +116,7 @@ public sealed class EvaluationResponseParser
         var result = new List<UntrustedEvaluationAmbiguity>();
         foreach (var item in array.EnumerateArray())
         {
+            if (result.Count >= 50) return false;
             if (item.ValueKind != JsonValueKind.Object || !HasExactlyAllowedProperties(item, AmbiguityProperties) ||
                 !TryOptionalString(item, "criterionId", out var id) || !TryString(item, "description", out var description) ||
                 !TryString(item, "requiredClarification", out var clarification)) return false;
@@ -84,14 +126,17 @@ public sealed class EvaluationResponseParser
         return true;
     }
 
-    private static bool TryStringArray(JsonElement root, string property, out IReadOnlyList<string> items)
+    private static bool TryStringArray(JsonElement root, string property, out IReadOnlyList<string> items, bool allowEmpty = false)
     {
         items = Array.Empty<string>();
         if (!root.TryGetProperty(property, out var array) || array.ValueKind != JsonValueKind.Array) return false;
         var result = new List<string>();
         foreach (var item in array.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.GetString())) return false;
+            if (result.Count >= 50) return false;
+            if (item.ValueKind != JsonValueKind.String || (!allowEmpty && string.IsNullOrWhiteSpace(item.GetString())) ||
+                item.GetString() is { Length: > 4000 }) return false;
+            if (string.IsNullOrWhiteSpace(item.GetString())) return false;
             result.Add(item.GetString()!);
         }
         items = result;
@@ -103,7 +148,7 @@ public sealed class EvaluationResponseParser
         value = string.Empty;
         if (!element.TryGetProperty(property, out var node) || node.ValueKind != JsonValueKind.String) return false;
         var content = node.GetString();
-        if (string.IsNullOrWhiteSpace(content)) return false;
+        if (string.IsNullOrWhiteSpace(content) || content.Length > 8000) return false;
         value = content;
         return true;
     }
@@ -113,7 +158,7 @@ public sealed class EvaluationResponseParser
         value = null;
         if (!element.TryGetProperty(property, out var node)) return false;
         if (node.ValueKind == JsonValueKind.Null) return true;
-        if (node.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(node.GetString())) return false;
+        if (node.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(node.GetString()) || node.GetString()!.Length > 4000) return false;
         value = node.GetString()!;
         return true;
     }
