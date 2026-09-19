@@ -123,7 +123,7 @@ echo "$profileless_ado_requests" | grep '"authorizationScheme":"Basic"' >/dev/nu
 }
 version_json=$(auth_curl --fail --silent --show-error http://127.0.0.1:8080/api/version)
 echo "$version_json" | grep '"application":"Engineering Intake Gate"' >/dev/null
-echo "$version_json" | grep '"version":"2026.9.3"' >/dev/null
+echo "$version_json" | grep '"version":"2026.9.4"' >/dev/null
 echo "$version_json" | grep '"environment":"Development"' >/dev/null
 
 echo "Explicitly importing the exact mounted legacy profile into the singleton SQLite authority"

@@ -148,7 +148,9 @@ Model validation and pricing resolution are separate operations. A confirmed pro
 
 Resolved records are fresh for a configurable TTL that defaults to seven days. Normal reads avoid repeated source work. Stale reads and explicit forced refresh resolve into a candidate record, then atomically replace cached catalog data only after success. Failure preserves the previous values, provenance, and verification time and returns an explicit stale/refresh-failed state. Manual overrides are not replaced by catalog refresh.
 
-The API exposes only estimates for the confirmed model. It includes nullable cached-input pricing because that dimension does not exist for every model. Future batch, long-context, regional, cache-write, tool, and marketplace dimensions require additive contracts; they are not collapsed into the current base token prices. The discovery cache is deliberately not connected to historical run-cost calculation in this change.
+The Setup API exposes estimates for the confirmed model. It includes nullable cached-input pricing because that dimension does not exist for every model. Runtime accounting consumes the same service/cache and snapshots exact decimal input/output cost for each provider interaction. Provider-reported model metadata wins over the requested model; the captured profile model is the final fallback. Retries remain separate interactions and therefore contribute their own usage and estimate.
+
+Evaluation audit JSON persists per-interaction usage, costing provider/model, pricing provenance/effective metadata, stale-cache state, and input/output/total amounts. Evaluation totals sum interaction estimates, run totals sum evaluation estimates, and Home sums persisted evaluation estimates once inside the existing UTC summary window. Missing usage or pricing is unavailable rather than zero; known amounts may be partial. Historical records are never recalculated or backfilled. Future batch, long-context, regional, cache-write, tool, and marketplace dimensions require additive contracts; they are not collapsed into base token prices.
 
 ## Decision and mutation safety
 
@@ -185,7 +187,7 @@ Durable state includes:
 - provider/model pricing cache with exact decimal values, provenance, catalog/effective/verification/expiry metadata, and manual-override source kind;
 - immutable runtime generations and active pointer;
 - discovery registrations, checkpoints, and leases;
-- run/evaluation audit, usage/cost, and control-plane audit;
+- run/evaluation audit with per-interaction provider/model, usage, persisted cost/provenance/coverage, and control-plane audit;
 - duplicate-detection and mutation-reconciliation state.
 
 Correctness state is not treated as disposable operational history. Retention settings do not authorize deletion of dedupe, unresolved reconciliation, checkpoint, or other safety-critical records.
@@ -206,7 +208,7 @@ Home computes Engineering-Ready Rate as:
 PASS / (PASS + FAIL)
 ```
 
-Error, Not Eligible, skipped, and technical states are excluded. Estimated cost is summed only from persisted estimates and explicitly reports incomplete historical coverage.
+Error, Not Eligible, skipped, and technical states are excluded from the readiness rate. Estimated cost includes eligible error evaluations when usage was incurred, is summed only from persisted estimates, and explicitly reports unknown or partial coverage.
 
 System Health reads persisted/derived state without contacting providers. Admins may explicitly run existing connection tests. Viewer health omits Admin-only AI diagnostics. Audit is newest-first, server-paged, filterable, and exposes safe changed-field names only.
 

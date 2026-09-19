@@ -2,7 +2,7 @@
 
 Engineering Intake Gate is a self-hosted engineering intake quality-control platform. It evaluates Azure DevOps work items against configurable intake standards before Engineering begins investigation, combining deterministic governance with structured AI-assisted assessment.
 
-**Current release:** `2026.9.3` (Controlled Dry Run MVP). It shows exactly what feedback and intake-state changes would be proposed, but it cannot enable Production or modify Azure DevOps.
+**Current release:** `2026.9.4` (Controlled Dry Run MVP). It shows exactly what feedback and intake-state changes would be proposed, but it cannot enable Production or modify Azure DevOps.
 
 ## Why this exists
 
@@ -21,7 +21,7 @@ Engineering Intake Gate applies one explicit, repeatable quality gate before inv
 - Shows proposed Azure DevOps tag/comment effects separately from confirmed actual effects.
 - Suppresses duplicate updates when a materially unchanged assessment is safely proven.
 - Provides Home metrics, run history, run detail, evaluation detail, System Health, and actor-aware Audit views.
-- Records provider-neutral token usage and persisted estimated AI cost when configured pricing is available.
+- Records per-request provider/model usage and persisted USD estimated AI cost, including retry, partial, and unavailable-cost semantics.
 - Enforces local Admin/Viewer RBAC, cookie sessions, CSRF protection, encrypted local credentials, and environment-variable credential references.
 - Activates append-only configuration generations so an active run cannot change underneath itself.
 - Resumes the first-run setup wizard from backend-persisted state after browser or container restarts.
@@ -31,7 +31,7 @@ Engineering Intake Gate applies one explicit, repeatable quality gate before inv
 | Setup and governance | Daily operations |
 |---|---|
 | [![AI model setup and estimated pricing](docs/images/03-setup-ai-model.png)](docs/PRODUCT_TOUR.md#ai-provider-and-model) | [![Home operational overview](docs/images/07-home.png)](docs/PRODUCT_TOUR.md#home) |
-| [![Saved-query preview](docs/images/05-query-preview.png)](docs/PRODUCT_TOUR.md#saved-query-preview) | [![Analyze Ticket](docs/images/08-analyze-ticket.png)](docs/PRODUCT_TOUR.md#analyze-ticket) |
+| [![Saved-query preview](docs/images/05-query-preview.png)](docs/PRODUCT_TOUR.md#saved-query-preview) | [![Run detail with one cost summary](docs/images/10-run-detail.png)](docs/PRODUCT_TOUR.md#run-detail) |
 | [![Setup review](docs/images/06-setup-review.png)](docs/PRODUCT_TOUR.md#review-and-finish) | [![Evaluation detail](docs/images/11-evaluation-detail.png)](docs/PRODUCT_TOUR.md#evaluation-detail) |
 
 See the [full Product Tour](docs/PRODUCT_TOUR.md) for all major screens, controls, workflows, and safety behavior.
@@ -89,7 +89,8 @@ flowchart TB
       Host --> Engine[Intake engine]
       Engine --> ADO[Azure DevOps adapter]
       Engine --> AI[AI provider factory]
-      CP --> Pricing[Model pricing service]
+      CP --> Pricing[Shared model pricing service]
+      Engine --> Pricing
       Pricing --> Catalog[Versioned pricing catalog]
       Pricing --> DB[(SQLite)]
       CP --> DB
@@ -221,7 +222,7 @@ Choose OpenAI or Anthropic, save an API key locally or as an environment referen
 
 After confirmation, the backend resolves estimated input, cached-input when applicable, and output pricing from its versioned provider-neutral catalog. Results retain currency, source, catalog version, effective date, and verification time in SQLite. They are fresh for seven days by default (`AiPricing:FreshnessDays`), and **Refresh pricing** bypasses that TTL without deleting the last valid value if refresh fails. Unknown pricing never prevents confirmation or Continue. Pricing is an estimate only; the provider determines actual charges.
 
-The discovered display price is intentionally separate from the profile's optional run-estimation pricing entries. This change does not reprice historical evaluations or add billing reconciliation. See [AI model pricing](docs/AI_MODEL_PRICING.md) for catalog scope, precedence, and maintenance.
+The same pricing service now snapshots estimated cost for each billable provider interaction, including retries. Provider-reported model metadata takes precedence over the requested model, with profile configuration used only as a final fallback. A refresh failure uses the last verified price and records that it was stale; missing usage or pricing produces an unavailable or partial estimate without changing the evaluation outcome. Existing completed records are never repriced or backfilled. See [AI model pricing and cost accounting](docs/AI_MODEL_PRICING.md) for catalog scope, precedence, aggregation, and maintenance.
 
 ### 4. System defaults and profile/policy
 
@@ -264,6 +265,8 @@ When enabled, the in-process scheduler evaluates future occurrences from the act
 
 Run and evaluation views show proposed effects independently from confirmed actual effects. In this Controlled Dry Run release, proposed tag/comment changes may be shown while actual effects remain empty.
 
+Estimated AI cost is a persisted USD estimate, not provider-billed cost. Every provider interaction with usage and known pricing contributes input and output token cost; retries therefore count. Evaluation cost is the sum of its provider interactions, run cost is the sum of its evaluations, and Home aggregates those persisted evaluation estimates once within the selected 7/30/90-day window. `—` means unavailable, not zero. Partial estimates show the known amount with concise coverage text, while a true known zero is `$0.00 USD`.
+
 Duplicate update suppression is recorded only when persisted state proves that an assessment is materially unchanged. Repeated Dry Run predictions are not mislabeled as actual suppressed writes.
 
 ## Operations and troubleshooting
@@ -300,7 +303,7 @@ Important contents:
 
 **A valid restore using locally encrypted credentials requires a consistent SQLite/application-state backup and the matching `intake-gate.secret-key`.** Losing or mismatching the key intentionally makes those credentials undecryptable. Preserve the Data Protection key ring to retain existing sessions; otherwise users must sign in again. The product does not implement automated backups.
 
-The database also contains the model-pricing cache and its source/freshness metadata. Schema 15 adds this table additively and does not rewrite profile, credential, or historical run data.
+The database also contains the model-pricing cache and its source/freshness metadata. Schema 15 adds this table additively and does not rewrite profile, credential, or historical run data. New audit JSON snapshots retain per-interaction requested/actual model metadata, token usage, exact input/output/total estimate components, pricing provenance, and stale-cache state. This additive payload evolution requires no schema migration and leaves historical records without cost as unavailable.
 
 ## Security
 
@@ -329,7 +332,7 @@ The root `docker-compose.yml` is always the public product topology. Reproducibl
 
 Releases use calendar-first, SemVer-compatible `YYYY.M.PATCH` versions. The month is never zero-padded, the monthly patch counter starts at `0`, prereleases use normal SemVer identifiers, and Git tags add a `v` prefix. See [Versioning](docs/VERSIONING.md) for the concise policy.
 
-The current release is `2026.9.3`; its corresponding Git tag is `v2026.9.3` when the owner chooses to create it.
+The current release is `2026.9.4`; its corresponding Git tag is `v2026.9.4` when the owner chooses to create it.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for focused development commands.
 
@@ -345,7 +348,7 @@ These are deliberate first-release boundaries:
 - No persistent logs UI, notifications, or advanced analytics.
 - No automatic backup system.
 - No multi-profile routing, selection, cloning, or archival.
-- Pricing refresh currently re-resolves the reviewed bundled catalog; no provider pricing endpoint, website scraping, invoice integration, regional/long-context pricing, or automatic run-level use of discovered prices is implemented.
+- Pricing refresh currently re-resolves the reviewed bundled catalog; no provider pricing endpoint, website scraping, invoice integration, billing reconciliation, account-specific override UI, regional/long-context pricing, cached-token accounting, or historical cost backfill is implemented.
 
 ## Engineering highlights
 
@@ -369,6 +372,7 @@ These are deliberate first-release boundaries:
 - [Requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md)
 - [Engineering rules](docs/ENGINEERING_RULES.md)
 - [Versioning](docs/VERSIONING.md)
+- [2026.9.4 release notes](docs/RELEASE_NOTES_2026.9.4.md)
 - [2026.9.3 release notes](docs/RELEASE_NOTES_2026.9.3.md)
 - [2026.9.2 release notes](docs/RELEASE_NOTES_2026.9.2.md)
 - [2026.9.1 release notes](docs/RELEASE_NOTES_2026.9.1.md)

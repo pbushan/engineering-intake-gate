@@ -1,6 +1,6 @@
 # Product Tour
 
-This tour uses the real `2026.9.3` application rendered against deterministic, organization-neutral test providers. Every identity, project, query, ticket, and credential shown is synthetic.
+This tour uses the real `2026.9.4` application rendered against deterministic, organization-neutral test providers. Every identity, project, query, ticket, and credential shown is synthetic.
 
 ## Bootstrap and login
 
@@ -88,7 +88,7 @@ The portable envelope is versioned (`format: engineering-intake-gate-profile`, `
 
 **Key controls:** time-window selector, recent-run links, System Health links, Analyze Ticket, and Run Profile Now navigation.
 
-**Typical workflow:** scan Engineering-Ready Rate, evaluated/ready/incomplete/error counts, Not Eligible, suppressed updates, estimated cost coverage, warnings, and recent activity.
+**Typical workflow:** scan Engineering-Ready Rate, evaluated/ready/incomplete/error counts, Not Eligible, suppressed updates, the selected-window persisted Estimated AI Cost and coverage, warnings, and recent activity. A partial total retains its known amount and names the number of fully costed tickets; unavailable pricing is `—`, while a true zero is `$0.00 USD`.
 
 **Safety:** the readiness rate is exactly PASS/(PASS+FAIL). Error and Not Eligible never enter the denominator. Opening Home reads persisted state and never tests a provider.
 
@@ -124,7 +124,7 @@ The portable envelope is versioned (`format: engineering-intake-gate-profile`, `
 
 **Key controls:** evaluation links and progressive disclosure for configuration-generation metadata.
 
-**Typical workflow:** review invocation, actor, timing, status, totals, usage/cost, then drill into a ticket.
+**Typical workflow:** review invocation, actor, timing, status, one run-level Estimated AI Cost, input/output/total tokens, and each evaluation's Usage / cost before drilling into a ticket. Partial estimates are labeled without exposing pricing infrastructure details.
 
 **Safety:** the screen exposes safe projections only—never raw evidence, provider payloads, credentials, or a serialized configuration snapshot.
 
@@ -136,7 +136,7 @@ The portable envelope is versioned (`format: engineering-intake-gate-profile`, `
 
 **Key controls:** outcome summary, criterion classifications, deficiencies, ambiguities, proposed effects, actual effects, token usage, estimated cost, and safe Azure DevOps link.
 
-**Typical workflow:** understand why an item is Engineering Ready, Intake Incomplete, Error, or Not Eligible and which support action would improve it.
+**Typical workflow:** understand why an item is Engineering Ready, Intake Incomplete, Error, or Not Eligible, which support action would improve it, and the persisted token usage/estimated cost for the provider interactions used at evaluation time.
 
 **Safety:** proposed and actual effects are always distinct. In Controlled Dry Run, proposals may exist while actual effects remain empty. Engineering Ready carries intake-only semantics.
 
