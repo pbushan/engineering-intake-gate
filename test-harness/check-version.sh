@@ -4,7 +4,7 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 
-expected_version="2026.9.3"
+expected_version="2026.9.4"
 retired_version="0.1.""0"
 retired_tag="v${retired_version}"
 retired_notes="RELEASE_NOTES_${retired_tag}.md"

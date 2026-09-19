@@ -21,11 +21,16 @@ public sealed class SqliteHomeSummaryReaderTests : IDisposable
         var end = At("2026-09-13T12:00:00Z");
 
         await SaveAsync(audits, start, IntakeDecision.Pass, EvaluationProcessingStatus.Completed,
-            WorkItemEligibility.Eligible, new EstimatedCost(0.10m, "USD"), suppressed: true);
+            WorkItemEligibility.Eligible, new EstimatedCost(0.100000000000000001m, "USD"), suppressed: true);
         await SaveAsync(audits, start.AddDays(1), IntakeDecision.Fail, EvaluationProcessingStatus.Completed,
-            WorkItemEligibility.Eligible, new EstimatedCost(0.20m, "usd"));
+            WorkItemEligibility.Eligible, new EstimatedCost(0.200000000000000002m, "usd"));
         await SaveAsync(audits, start.AddDays(2), null, EvaluationProcessingStatus.Error,
-            WorkItemEligibility.Eligible, new EstimatedCost(0.30m, "USD"));
+            WorkItemEligibility.Eligible, new EstimatedCost(0.300000000000000003m, "USD")
+            {
+                Complete = false,
+                PricedInteractions = 1,
+                TotalInteractions = 2
+            });
         await SaveAsync(audits, start.AddDays(3), null, EvaluationProcessingStatus.Completed,
             WorkItemEligibility.NotEligible, null);
         await SaveAsync(audits, start.AddDays(4), null, EvaluationProcessingStatus.Completed,
@@ -48,9 +53,11 @@ public sealed class SqliteHomeSummaryReaderTests : IDisposable
         Assert.Equal(1, result.NotEligibleCount);
         Assert.Equal(1, result.SkippedCount);
         Assert.Equal(1, result.DuplicateUpdatesSuppressedCount);
-        Assert.Equal(0.60m, result.EstimatedAiCost!.Amount);
+        Assert.Equal(0.600000000000000006m, result.EstimatedAiCost!.Amount);
         Assert.Equal("USD", result.EstimatedAiCost.Currency);
         Assert.Equal(3, result.EvaluationsWithEstimatedCost);
+        Assert.Equal(2, result.EvaluationsWithCompleteEstimatedCost);
+        Assert.Equal(1, result.EvaluationsWithPartialEstimatedCost);
         Assert.Equal(1, result.EvaluationsWithoutEstimatedCost);
         Assert.False(result.EstimatedCostComplete);
     }

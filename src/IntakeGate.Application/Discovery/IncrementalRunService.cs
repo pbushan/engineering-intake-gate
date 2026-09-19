@@ -122,7 +122,10 @@ public sealed class IncrementalRunService(
                 .Where(item => queryIds.Contains(item.WorkItemId)).ToArray();
             var outcomes = await ProcessAsync(processable, queryIds, configuration, triggerType, triggeredBy, runId, cancellationToken);
             var tokenUsage = SumUsage(outcomes.Select(outcome => outcome.TokenUsage));
-            var cost = SumCost(outcomes.Select(outcome => outcome.EstimatedCost));
+            var costRelevant = outcomes.Where(outcome => outcome.CostRelevant).ToArray();
+            var cost = EstimatedCostAggregation.Sum(
+                costRelevant.Select(outcome => outcome.EstimatedCost).ToArray(),
+                costRelevant.Select(outcome => outcome.CostInteractionCount).ToArray());
             var errorCount = outcomes.Count(outcome => outcome.Error) + discoveryReadErrors;
             var status = errorCount == 0 ? IncrementalRunStatus.Completed : IncrementalRunStatus.CompletedWithErrors;
             var completed = NewAudit(status, UtcNow(), checkpointBefore?.AdvancedAtUtc, checkpointAt,
@@ -240,7 +243,8 @@ public sealed class IncrementalRunService(
             result.ProcessingStatus == Evaluation.EvaluationProcessingStatus.Completed ? RegisteredWorkState.Completed : RegisteredWorkState.Error,
             clock.UtcNow.ToUniversalTime());
         return new ProcessingOutcome(result.Decision == Evaluation.IntakeDecision.Pass, result.Decision == Evaluation.IntakeDecision.Fail,
-            result.ProcessingStatus == Evaluation.EvaluationProcessingStatus.Error, false, audit?.TokenUsage, audit?.EstimatedCost);
+            result.ProcessingStatus == Evaluation.EvaluationProcessingStatus.Error, false, true,
+            audit?.AiInteractions.Count ?? 0, audit?.TokenUsage, audit?.EstimatedCost);
 
         Task SetProcessingStateAsync(RegisteredWorkState state, DateTimeOffset at) =>
             configuration.RuntimeGenerationId is { } generationId
@@ -306,12 +310,8 @@ public sealed class IncrementalRunService(
         var values = all.Where(value => value is not null).Cast<TokenUsage>().ToArray();
         return values.Length == 0 ? null : new TokenUsage(values.Sum(value => value.InputTokens), values.Sum(value => value.OutputTokens), values.Sum(value => value.TotalTokens));
     }
-    private static EstimatedCost? SumCost(IEnumerable<EstimatedCost?> all)
-    {
-        var values = all.Where(value => value is not null).Cast<EstimatedCost>().ToArray();
-        if (values.Length == 0 || values.Select(value => value.Currency).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any()) return null;
-        return new EstimatedCost(values.Sum(value => value.Amount), values[0].Currency) { PricingIdentity = values.Select(value => value.PricingIdentity).Distinct().SingleOrDefault() };
-    }
     private sealed record ProcessingOutcome(bool Pass = false, bool Fail = false, bool Error = false, bool Skipped = false,
+        bool CostRelevant = false,
+        int CostInteractionCount = 0,
         TokenUsage? TokenUsage = null, EstimatedCost? EstimatedCost = null);
 }

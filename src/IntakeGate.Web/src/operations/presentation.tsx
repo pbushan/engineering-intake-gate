@@ -28,21 +28,34 @@ export const formatDuration = (value: number | string | null): string => {
   return `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1000)}s`;
 };
 
-export const formatCost = (cost: EstimatedCost | null): string => {
+export type CostDisplayContext = 'detail' | 'summary';
+
+export const formatCost = (cost: EstimatedCost | null, context: CostDisplayContext = 'detail'): string => {
   if (!cost) return '—';
   const amount = Number(cost.amount);
   if (!Number.isFinite(amount)) return '—';
+  const absolute = Math.abs(amount);
+  const fractionDigits = amount === 0
+    ? 2
+    : context === 'summary' && absolute >= 0.01
+      ? 2
+      : absolute < 0.0001 ? 8 : 4;
   try {
-    return new Intl.NumberFormat(undefined, {
+    const formatted = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: cost.currency,
-      minimumFractionDigits: amount < 0.01 ? 4 : 2,
-      maximumFractionDigits: amount < 0.01 ? 6 : 2,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
     }).format(amount);
+    return `${formatted} ${cost.currency}`;
   } catch {
-    return `${amount.toFixed(4)} ${cost.currency}`;
+    return `${amount.toFixed(fractionDigits)} ${cost.currency}`;
   }
 };
+
+export const costCoverage = (cost: EstimatedCost | null): string | undefined =>
+  cost && !cost.complete ? 'Partial estimate' : undefined;
 
 export const invocationLabel = (value: RunTriggerType): string => ({
   scheduled: 'Scheduled',
@@ -89,18 +102,18 @@ export function AzureDevOpsLink({ href, workItemId }: { href: string | null; wor
   );
 }
 
-export function UsageCost({ usage, cost }: { usage: TokenUsage | null; cost: EstimatedCost | null }) {
+export function UsageCost({ usage, cost, showCost = true }: { usage: TokenUsage | null; cost: EstimatedCost | null; showCost?: boolean }) {
   return (
     <Grid container spacing={2} aria-label="AI usage and estimated cost">
       <Metric label="Input tokens" value={usage ? formatInteger(usage.inputTokens) : '—'} />
       <Metric label="Output tokens" value={usage ? formatInteger(usage.outputTokens) : '—'} />
       <Metric label="Total tokens" value={usage ? formatInteger(usage.totalTokens) : '—'} />
-      <Metric label="Estimated AI cost" value={formatCost(cost)} />
+      {showCost ? <Metric label="Estimated AI cost" value={formatCost(cost)} detail={costCoverage(cost)} /> : null}
     </Grid>
   );
 }
 
-export function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
+export function Metric({ label, value, detail }: { label: string; value: string; detail?: string | undefined }) {
   return (
     <Grid size={{ xs: 6, sm: 3 }}>
       <Box>

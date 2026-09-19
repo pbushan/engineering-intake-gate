@@ -147,7 +147,7 @@ The UI and backend management APIs keep Production (the user-facing name for exi
 | NFR-005 | Evidence processing is explainable. | disclosure/audit tests | PASS | Safe statuses and counts. |
 | NFR-006 | Raw/self-generated/secret evidence cannot cross trust boundary. | security and endpoint leakage tests | PASS | Visual limitation disclosed. |
 | NFR-007 | Audit reconstructs decisions without raw inputs. | Evaluation and reconciliation restart tests | PASS | Safe structured state only. |
-| NFR-008 | Usage/cost accounting is provider-neutral. | cost and adapter audit tests | PASS | Missing pricing stays null. |
+| NFR-008 | Usage/cost accounting is provider-neutral. | pricing TTL, per-interaction cost, persistence, aggregation, API, and UI tests | PASS | Exact USD estimates persist; missing pricing is unknown, and mixed coverage stays partial. |
 | NFR-009 | Solution/harness remains maintainable. | full regression/format/release harness | PASS | Focused MVP only. |
 | TEST-001 | Default suites are deterministic and offline. | all default test projects and Docker doubles | PASS | Live tests opt-in. |
 | OPS-001 | Safety, logging, audit, usage, and errors are deterministic. | full regression and audit tests | PASS | Provider-neutral categories. |

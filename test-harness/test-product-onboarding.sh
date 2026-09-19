@@ -68,7 +68,7 @@ auth_curl --fail --silent --show-error --header 'Content-Type: application/json'
 refresh_csrf
 
 auth_curl --fail --silent --show-error http://127.0.0.1:8080/api/version | \
-    grep '"version":"2026.9.3"' >/dev/null
+    grep '"version":"2026.9.4"' >/dev/null
 
 record_progress Welcome
 record_progress AzureDevOps
@@ -267,7 +267,7 @@ echo "$home_summary" | grep '"errorCount":1' >/dev/null || { echo "Home ERROR co
 echo "$home_summary" | grep '"notEligibleCount":1' >/dev/null || { echo "Home NOT_ELIGIBLE count did not match deterministic fixtures." >&2; exit 1; }
 echo "$home_summary" | grep '"duplicateUpdatesSuppressedCount":0' >/dev/null || { echo "Home inferred suppression from repeated Controlled Dry Run assessments." >&2; exit 1; }
 echo "$home_summary" | grep '"engineeringReadyRate":{"numerator":1,"denominator":3,"percentage":33.3}' >/dev/null || { echo "Home Engineering-Ready Rate did not equal PASS/(PASS+FAIL)." >&2; exit 1; }
-echo "$home_summary" | grep '"estimatedAiCost":{"amount":null,"currency":null,"evaluationsWithEstimate":0,"evaluationsWithoutEstimate":4,"complete":false}' >/dev/null || { echo "Home missing historical cost coverage was not represented truthfully." >&2; exit 1; }
+echo "$home_summary" | grep '"estimatedAiCost":{"amount":null,"currency":null,"evaluationsWithEstimate":0,"evaluationsWithCompleteEstimate":0,"evaluationsWithPartialEstimate":0,"evaluationsWithoutEstimate":4,"complete":false}' >/dev/null || { echo "Home missing historical cost coverage was not represented truthfully." >&2; exit 1; }
 echo "$home_summary" | grep "$manual_run_id" >/dev/null
 echo "$home_summary" | grep "$support_failure_run_id" >/dev/null
 auth_curl --fail --silent --show-error 'http://127.0.0.1:8080/api/home/summary?windowDays=7' | grep '"windowDays":7' >/dev/null

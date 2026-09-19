@@ -2,6 +2,7 @@ using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Decision;
 using IntakeGate.Application.Evaluation;
 using IntakeGate.Application.Evidence;
+using IntakeGate.Application.AiPricing;
 using IntakeGate.Application.WorkItems;
 
 namespace IntakeGate.Application.Audit;
@@ -17,7 +18,35 @@ public sealed record TokenUsage(int InputTokens, int OutputTokens, int TotalToke
 public sealed record EstimatedCost(decimal Amount, string Currency)
 {
     public string? PricingIdentity { get; init; }
+    public bool Complete { get; init; } = true;
+    public int PricedInteractions { get; init; } = 1;
+    public int TotalInteractions { get; init; } = 1;
 }
+
+public sealed record AppliedAiPricing(
+    decimal InputPerMillionTokens,
+    decimal OutputPerMillionTokens,
+    string Currency,
+    string Source,
+    Uri? SourceUri,
+    string CatalogVersion,
+    DateTimeOffset? EffectiveAtUtc,
+    DateTimeOffset VerifiedAtUtc,
+    AiModelPricingSourceKind SourceKind,
+    bool Stale);
+
+public sealed record AiInteractionCostRecord(
+    int Attempt,
+    string RequestedProviderIdentifier,
+    string RequestedModelIdentifier,
+    string ProviderUsedForPricing,
+    string ModelUsedForPricing,
+    string? ProviderRequestId,
+    TokenUsage? TokenUsage,
+    decimal? EstimatedInputCost,
+    decimal? EstimatedOutputCost,
+    decimal? EstimatedTotalCost,
+    AppliedAiPricing? Pricing);
 public sealed record RedactionCategoryCount(string Category, int Count);
 public sealed record MutationOutcome(ProposedMutationType Type, bool Succeeded, string? SafeErrorCategory)
 {
@@ -174,4 +203,5 @@ public sealed record EvaluationAuditRecord(
     public bool UpdateSuppressed { get; init; }
     public string? SuppressionReason { get; init; }
     public bool? MateriallyChanged { get; init; }
+    public IReadOnlyList<AiInteractionCostRecord> AiInteractions { get; init; } = [];
 }

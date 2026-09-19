@@ -11,6 +11,8 @@ public sealed record EstimatedAiCostSummaryResponse(
     decimal? Amount,
     string? Currency,
     int EvaluationsWithEstimate,
+    int EvaluationsWithCompleteEstimate,
+    int EvaluationsWithPartialEstimate,
     int EvaluationsWithoutEstimate,
     bool Complete);
 

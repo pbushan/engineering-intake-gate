@@ -153,7 +153,7 @@ public sealed class LocalAuthenticationEndpointTests
         Assert.Equal(HttpStatusCode.OK, version.StatusCode);
         var versionBody = await version.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Engineering Intake Gate", versionBody.GetProperty("application").GetString());
-        Assert.Equal("2026.9.3", versionBody.GetProperty("version").GetString());
+        Assert.Equal("2026.9.4", versionBody.GetProperty("version").GetString());
         using var profile = await viewer.GetAsync("/api/profile");
         Assert.Equal(HttpStatusCode.OK, profile.StatusCode);
         using var run = await viewer.PostAsync("/api/runs", null);

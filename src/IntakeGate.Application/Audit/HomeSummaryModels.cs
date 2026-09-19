@@ -17,6 +17,8 @@ public sealed record HomeSummaryAggregate(
     int DuplicateUpdatesSuppressedCount,
     EstimatedCost? EstimatedAiCost,
     int EvaluationsWithEstimatedCost,
+    int EvaluationsWithCompleteEstimatedCost,
+    int EvaluationsWithPartialEstimatedCost,
     int EvaluationsWithoutEstimatedCost,
     bool EstimatedCostComplete);
 

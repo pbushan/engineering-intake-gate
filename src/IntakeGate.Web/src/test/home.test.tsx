@@ -25,7 +25,7 @@ it('HOME-UI-001 renders the 30-day backend aggregate with locked labels, cost, w
   expect(metrics).toHaveTextContent('Intake Incomplete');
   expect(metrics).toHaveTextContent('Technical/system failures');
   expect(screen.getByText('Duplicate Updates Suppressed').parentElement).toHaveTextContent('2');
-  expect(screen.getByText('Estimated AI Cost').parentElement).toHaveTextContent(/0\.0123/);
+  expect(screen.getByText('Estimated AI Cost').parentElement).toHaveTextContent('$0.01 USD');
   expect(screen.getByText('Recent run needs attention')).toBeVisible();
   expect(screen.getByRole('link', { name: `Open run ${runSummary.runId}` })).toHaveAttribute('href', `/runs/${runSummary.runId}`);
 });
@@ -56,7 +56,7 @@ it('HOME-UI-003 represents a zero denominator and empty window without implying 
     notEligibleCount: 0,
     duplicateUpdatesSuppressedCount: 0,
     engineeringReadyRate: { numerator: 0, denominator: 0, percentage: null },
-    estimatedAiCost: { amount: null, currency: null, evaluationsWithEstimate: 0, evaluationsWithoutEstimate: 0, complete: true },
+    estimatedAiCost: { amount: null, currency: null, evaluationsWithEstimate: 0, evaluationsWithCompleteEstimate: 0, evaluationsWithPartialEstimate: 0, evaluationsWithoutEstimate: 0, complete: true },
     recentRuns: [],
   } });
   render(<App />);
@@ -65,6 +65,38 @@ it('HOME-UI-003 represents a zero denominator and empty window without implying 
   expect(screen.getByLabelText('Engineering-Ready Rate unavailable')).toBeVisible();
   expect(screen.getByText('No Engineering Ready or Intake Incomplete assessments in this window.')).toBeVisible();
   expect(screen.getByText('No runs started in the selected window.')).toBeVisible();
+  expect(screen.getByText('Estimated AI Cost').parentElement).toHaveTextContent('$0.00 USD');
+});
+
+it('AI-COST-UI-001 distinguishes unknown and partial dashboard coverage', async () => {
+  const partial = {
+    ...homeSummary,
+    evaluatedCount: 8,
+    estimatedAiCost: {
+      amount: 4.87,
+      currency: 'USD',
+      evaluationsWithEstimate: 7,
+      evaluationsWithCompleteEstimate: 7,
+      evaluationsWithPartialEstimate: 0,
+      evaluationsWithoutEstimate: 1,
+      complete: false,
+    },
+  } satisfies HomeSummary;
+  const backend = installMockBackend({ user: viewerUser, setup: completeSetup, homeSummaries: {
+    30: partial,
+    7: { ...partial, windowDays: 7, estimatedAiCost: { ...partial.estimatedAiCost, amount: null, currency: null, evaluationsWithEstimate: 0, evaluationsWithCompleteEstimate: 0, evaluationsWithoutEstimate: 8 } },
+    90: { ...partial, windowDays: 90, estimatedAiCost: { ...partial.estimatedAiCost, amount: 0.0034, complete: true, evaluationsWithCompleteEstimate: 8, evaluationsWithEstimate: 8, evaluationsWithoutEstimate: 0 } },
+  } });
+  render(<App />);
+
+  const cost = (await screen.findByText('Estimated AI Cost')).parentElement!;
+  expect(cost).toHaveTextContent('$4.87 USD');
+  expect(cost).toHaveTextContent('7 of 8 evaluated ticket(s) fully costed.');
+  await userEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+  expect(await screen.findByText('No pricing estimates available.')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Last 90 days' }));
+  expect((await screen.findByText('Estimated AI Cost')).parentElement).toHaveTextContent('$0.0034 USD');
+  expect(backend.calls.some((call) => call.path === '/api/home/summary?windowDays=7')).toBe(true);
 });
 
 it('HOME-UI-004 shows healthy state and keeps Viewer free of mutation actions', async () => {

@@ -154,6 +154,12 @@ public sealed record MutationAttemptResponse(
 
 public sealed record TokenUsageResponse(int InputTokens, int OutputTokens, int TotalTokens);
 
-public sealed record EstimatedCostResponse(decimal Amount, string Currency, string? PricingIdentity);
+public sealed record EstimatedCostResponse(
+    decimal Amount,
+    string Currency,
+    string? PricingIdentity,
+    bool Complete,
+    int PricedInteractions,
+    int TotalInteractions);
 
 public sealed record SafeOperationalErrorResponse(string Category, string Message);

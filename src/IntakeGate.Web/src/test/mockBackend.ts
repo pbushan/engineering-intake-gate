@@ -117,7 +117,7 @@ export const profileState: ProfileState = {
   },
 };
 
-const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.3', environment: 'Test' };
+const version: VersionInfo = { application: 'Engineering Intake Gate', version: '2026.9.4', environment: 'Test' };
 
 export const runSummary: RunSummary = {
   runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -129,7 +129,7 @@ export const runSummary: RunSummary = {
   errorCount: 0, notEligibleCount: 0, skippedCount: 0, duplicateUpdatesSuppressedCount: 0,
   azureDevOpsMutationCount: 0,
   tokenUsage: { inputTokens: 1250, outputTokens: 250, totalTokens: 1500 },
-  estimatedCost: { amount: 0.0042, currency: 'USD', pricingIdentity: 'test-price' }, errors: [],
+  estimatedCost: { amount: 0.0042, currency: 'USD', pricingIdentity: 'test-price', complete: true, pricedInteractions: 1, totalInteractions: 1 }, errors: [],
 };
 
 export const runItemDetail: RunItemDetail = {
@@ -175,14 +175,14 @@ export const homeSummary: HomeSummary = {
   skippedCount: 1,
   duplicateUpdatesSuppressedCount: 2,
   engineeringReadyRate: { numerator: 3, denominator: 4, percentage: 75 },
-  estimatedAiCost: { amount: 0.0123, currency: 'USD', evaluationsWithEstimate: 5, evaluationsWithoutEstimate: 0, complete: true },
+  estimatedAiCost: { amount: 0.0123, currency: 'USD', evaluationsWithEstimate: 5, evaluationsWithCompleteEstimate: 5, evaluationsWithPartialEstimate: 0, evaluationsWithoutEstimate: 0, complete: true },
   recentRuns: [runSummary],
   healthWarnings: [{ code: 'RecentRunFailure:test', title: 'Recent run needs attention', message: 'A technical/system failure was persisted.', detailUrl: `/runs/${runSummary.runId}` }],
 };
 
 export const systemHealth: SystemHealth = {
   generatedAtUtc: '2026-09-12T14:30:00Z',
-  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.3', environment: 'Test' },
+  application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.4', environment: 'Test' },
   database: { status: 'healthy', reachable: true, currentSchemaVersion: 15, migrationCurrent: true },
   setup: { status: 'ready', complete: true, profileConfigured: true, savedQueryConfirmed: true },
   runtime: { status: 'active', activeGenerationId: 7, activationCurrent: true },

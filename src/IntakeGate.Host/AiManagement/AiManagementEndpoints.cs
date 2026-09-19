@@ -122,11 +122,24 @@ public static class AiManagementEndpoints
             return (null, null);
         var result = await pricing.GetAsync(
             settings.Provider, settings.Model, forceRefresh, cancellationToken);
+        var logger = loggerFactory.CreateLogger("AiModelPricing");
+        if (result.Refreshed)
+        {
+            logger.LogInformation(
+                "AI model pricing refreshed. Event={EventName} Provider={Provider} Model={Model}",
+                "AiModelPricingRefreshed", settings.Provider, settings.Model);
+        }
         if (result.RefreshFailed)
         {
-            loggerFactory.CreateLogger("AiModelPricing").LogWarning(
+            logger.LogWarning(
                 "AI model pricing refresh was unavailable. Event={EventName} Provider={Provider} Model={Model} Preserved={Preserved}",
                 "AiModelPricingRefreshUnavailable", settings.Provider, settings.Model, result.Available);
+        }
+        if (result.Stale && result.Available)
+        {
+            logger.LogWarning(
+                "Stale cached AI model pricing is in use. Event={EventName} Provider={Provider} Model={Model}",
+                "AiModelPricingStaleCacheUsed", settings.Provider, settings.Model);
         }
         return (settings, result);
     }

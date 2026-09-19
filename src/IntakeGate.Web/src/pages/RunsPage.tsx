@@ -34,6 +34,7 @@ import type { OperationalRunStatus, RunHistoryPage, RunTriggerType } from '../ap
 import { useAuth } from '../auth/AuthContext';
 import {
   actorLabel,
+  costCoverage,
   formatCost,
   formatDateTime,
   formatInteger,
@@ -198,7 +199,7 @@ export function RunsPage() {
                     <TableCell><RunStatusChip status={run.status} /></TableCell>
                     <TableCell><Typography variant="body2">{formatInteger(run.ticketsEvaluated)} evaluated</Typography><Typography variant="caption" color="text.secondary">{formatInteger(run.engineeringReadyCount)} ready · {formatInteger(run.intakeIncompleteCount)} incomplete · {formatInteger(run.errorCount)} error{Number(run.notEligibleCount) ? ` · ${formatInteger(run.notEligibleCount)} not eligible` : ''}</Typography></TableCell>
                     <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{formatInteger(run.duplicateUpdatesSuppressedCount)}</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{formatCost(run.estimatedCost)}</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{formatCost(run.estimatedCost)}{costCoverage(run.estimatedCost) ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{costCoverage(run.estimatedCost)}</Typography> : null}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

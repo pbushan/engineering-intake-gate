@@ -1,4 +1,5 @@
 using IntakeGate.Application.Audit;
+using IntakeGate.Application.AiPricing;
 using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Decision;
 using IntakeGate.Application.Discovery;
@@ -61,7 +62,14 @@ public sealed class SqliteOperationalAuditReaderTests : IDisposable
         var run = Run(Guid.NewGuid(), "2026-09-13T12:00:00Z");
         var evaluation = Evaluation(run.RunId, "42") with
         {
-            ProposedMutations = [ProposedMutation.AddTag("READY"), ProposedMutation.PostComment("safe", "marker")]
+            ProposedMutations = [ProposedMutation.AddTag("READY"), ProposedMutation.PostComment("safe", "marker")],
+            AiInteractions = [new AiInteractionCostRecord(
+                1, "openai", "requested-model", "openai", "reported-model", "req-1",
+                new TokenUsage(7, 3, 10), 0.000007m, 0.000006m, 0.000013m,
+                new AppliedAiPricing(1m, 2m, "USD", "Test catalog",
+                    new Uri("https://example.test/pricing"), "test-v1", At("2026-09-01T00:00:00Z"),
+                    At("2026-09-13T11:00:00Z"),
+                    AiModelPricingSourceKind.BundledCatalog, false))]
         };
         await audits.SaveAsync(run, evaluation);
         await audits.UpdateMutationAuditAsync(evaluation.EvaluationId,
@@ -77,6 +85,10 @@ public sealed class SqliteOperationalAuditReaderTests : IDisposable
         Assert.False(item.MateriallyChanged);
         Assert.Equal("MateriallyUnchangedAssessment", item.SuppressionReason);
         Assert.Single(item.MutationOutcomes);
+        var interaction = Assert.Single(item.AiInteractions);
+        Assert.Equal("reported-model", interaction.ModelUsedForPricing);
+        Assert.Equal(0.000013m, interaction.EstimatedTotalCost);
+        Assert.Equal("test-v1", interaction.Pricing!.CatalogVersion);
         Assert.Equal(ProposedMutationType.AddTag, item.MutationOutcomes[0].Type);
         Assert.DoesNotContain(item.MutationOutcomes, outcome => outcome.Type == ProposedMutationType.PostComment);
     }

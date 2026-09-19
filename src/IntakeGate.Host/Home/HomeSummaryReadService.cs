@@ -47,6 +47,8 @@ public sealed class HomeSummaryReadService(
                 aggregate.EstimatedAiCost?.Amount,
                 aggregate.EstimatedAiCost?.Currency,
                 aggregate.EvaluationsWithEstimatedCost,
+                aggregate.EvaluationsWithCompleteEstimatedCost,
+                aggregate.EvaluationsWithPartialEstimatedCost,
                 aggregate.EvaluationsWithoutEstimatedCost,
                 aggregate.EstimatedCostComplete),
             recent.Items,

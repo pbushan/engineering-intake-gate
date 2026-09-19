@@ -38,7 +38,8 @@ public sealed record AiModelPricingRecord(
 public sealed record AiModelPricingLookupResult(
     AiModelPricingRecord? Pricing,
     bool Stale,
-    bool RefreshFailed)
+    bool RefreshFailed,
+    bool Refreshed = false)
 {
     public bool Available => Pricing is not null;
 }

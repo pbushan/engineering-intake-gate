@@ -256,7 +256,13 @@ public sealed class OperationalRunReadService(
 
     private static EstimatedCostResponse? Cost(EstimatedCost? cost) => cost is null
         ? null
-        : new EstimatedCostResponse(cost.Amount, cost.Currency, cost.PricingIdentity);
+        : new EstimatedCostResponse(
+            cost.Amount,
+            cost.Currency,
+            cost.PricingIdentity,
+            cost.Complete,
+            cost.PricedInteractions,
+            cost.TotalInteractions);
 
     private static IReadOnlyList<SafeOperationalErrorResponse> EvaluationErrors(EvaluationAuditRecord evaluation) =>
         evaluation.ErrorCategories

@@ -113,7 +113,7 @@ public sealed class AiModelPricingService
                 quote.SourceKind);
             await repository.UpsertResolvedAsync(refreshed, cancellationToken);
             var persisted = await repository.GetAsync(provider, modelId, cancellationToken);
-            return new(persisted ?? refreshed, false, false);
+            return new(persisted ?? refreshed, false, false, true);
         }
 
         if (existing is not null)

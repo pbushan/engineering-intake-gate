@@ -24,6 +24,19 @@ public sealed record AiProviderAttemptMetadata(
     string? ProviderReportedModel,
     TokenUsage? TokenUsage);
 
+/// <summary>
+/// One provider interaction made while producing an evaluation. Attempts are retained
+/// individually because retries and future multi-model workflows are independently billable.
+/// </summary>
+public sealed record AiProviderInteractionUsage(
+    int Attempt,
+    string RequestedProviderIdentifier,
+    string RequestedModelIdentifier,
+    string? ActualProviderIdentifier,
+    string? ProviderReportedModel,
+    string? ProviderRequestId,
+    TokenUsage? TokenUsage);
+
 public sealed record AiProviderFailure(AiProviderFailureKind Kind, string SafeCategory);
 
 public enum AiProviderFailureKind
@@ -101,6 +114,7 @@ public sealed record EvaluationProcessingResult(
     public TokenUsage? TokenUsage { get; init; }
     public string? ProviderReportedModel { get; init; }
     public IReadOnlyList<string> ProviderRequestIds { get; init; } = [];
+    public IReadOnlyList<AiProviderInteractionUsage> ProviderInteractions { get; init; } = [];
 }
 
 public sealed record EvaluationFailure(string Category);

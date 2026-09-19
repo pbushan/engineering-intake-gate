@@ -31,6 +31,7 @@ import type { RunDetail } from '../api/contracts';
 import {
   actorLabel,
   AzureDevOpsLink,
+  costCoverage,
   DecisionChip,
   formatCost,
   formatDateTime,
@@ -103,9 +104,9 @@ export function RunDetailPage() {
             <Metric label="Not Eligible" value={formatInteger(summary.notEligibleCount)} />
             <Metric label="Duplicate updates suppressed" value={formatInteger(summary.duplicateUpdatesSuppressedCount)} />
             <Metric label="Actual ADO changes" value={formatInteger(summary.azureDevOpsMutationCount)} />
-            <Metric label="Estimated AI cost" value={formatCost(summary.estimatedCost)} />
+            <Metric label="Estimated AI cost" value={formatCost(summary.estimatedCost)} detail={costCoverage(summary.estimatedCost)} />
           </Grid>
-          <Box sx={{ mt: 3 }}><UsageCost usage={summary.tokenUsage} cost={summary.estimatedCost} /></Box>
+          <Box sx={{ mt: 3 }}><UsageCost usage={summary.tokenUsage} cost={summary.estimatedCost} showCost={false} /></Box>
         </CardContent>
       </Card>
 
@@ -124,7 +125,7 @@ export function RunDetailPage() {
                     <TableCell><DecisionChip decision={item.decision} /></TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, textTransform: 'capitalize' }}>{item.eligibility.replace(/([A-Z])/g, ' $1')}</TableCell>
                     <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>{item.updateSuppressed ? 'Duplicate Update Suppressed' : 'No suppression reported'}</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{item.tokenUsage ? `${formatInteger(item.tokenUsage.totalTokens)} tokens` : '—'}<Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{formatCost(item.estimatedCost)}</Typography></TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{item.tokenUsage ? `${formatInteger(item.tokenUsage.totalTokens)} tokens` : '—'}<Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{formatCost(item.estimatedCost)}</Typography>{costCoverage(item.estimatedCost) ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{costCoverage(item.estimatedCost)}</Typography> : null}</TableCell>
                     <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}><AzureDevOpsLink href={item.azureDevOpsUrl} workItemId={item.workItemId} /></TableCell>
                   </TableRow>
                 ))}

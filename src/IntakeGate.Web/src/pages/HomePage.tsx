@@ -27,10 +27,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { asApiError, type ApiError } from '../api/api-error';
 import { apiClient } from '../api/client';
-import type { HomeSummary, HomeWindowDays, RunSummary } from '../api/contracts';
+import type { HomeSummary, HomeWindowDays } from '../api/contracts';
 import { useAuth } from '../auth/AuthContext';
 import { PageError } from '../components/PageError';
-import { formatDateTime } from '../operations/presentation';
+import { costCoverage, formatCost, formatDateTime } from '../operations/presentation';
 
 const windowOptions: HomeWindowDays[] = [7, 30, 90];
 const words = (value: string): string => value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase());
@@ -48,20 +48,19 @@ function MetricCard({ title, value, detail, children }: { title: string; value: 
   );
 }
 
-function money(summary: HomeSummary): string {
-  const amount = summary.estimatedAiCost.amount;
-  const currency = summary.estimatedAiCost.currency;
-  if (amount === null || currency === null) return summary.evaluatedCount === 0 ? '0' : '—';
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 4 }).format(Number(amount));
-  } catch {
-    return `${currency} ${Number(amount).toFixed(4)}`;
-  }
+function summaryCost(summary: HomeSummary): string {
+  if (summary.evaluatedCount === 0) return '$0.00 USD';
+  const { amount, currency, complete } = summary.estimatedAiCost;
+  return amount === null || currency === null
+    ? '—'
+    : formatCost({ amount, currency, pricingIdentity: null, complete, pricedInteractions: summary.estimatedAiCost.evaluationsWithEstimate, totalInteractions: summary.evaluatedCount }, 'summary');
 }
 
-function runCost(run: RunSummary): string {
-  if (!run.estimatedCost) return '—';
-  return `${run.estimatedCost.currency} ${Number(run.estimatedCost.amount).toFixed(4)}`;
+function summaryCostDetail(summary: HomeSummary): string {
+  if (summary.evaluatedCount === 0) return 'No AI evaluations in this window.';
+  if (summary.estimatedAiCost.amount === null) return 'No pricing estimates available.';
+  if (summary.estimatedAiCost.complete) return 'Sum of persisted estimates; no historical repricing.';
+  return `${summary.estimatedAiCost.evaluationsWithCompleteEstimate} of ${summary.evaluatedCount} evaluated ticket(s) fully costed.`;
 }
 
 export function HomePage() {
@@ -150,7 +149,7 @@ export function HomePage() {
           <Typography id="operational-metrics-heading" component="h2" variant="h2" gutterBottom>Operational metrics</Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 4 }}><MetricCard title="Duplicate Updates Suppressed" value={String(summary.duplicateUpdatesSuppressedCount)} detail="Explicit persisted materially-unchanged suppressions only." /></Grid>
-            <Grid size={{ xs: 12, md: 4 }}><MetricCard title="Estimated AI Cost" value={money(summary)} detail={summary.estimatedAiCost.complete ? 'Sum of persisted historical estimates; no repricing.' : `${summary.estimatedAiCost.evaluationsWithoutEstimate} evaluated ticket(s) have no persisted estimate.`} /></Grid>
+            <Grid size={{ xs: 12, md: 4 }}><MetricCard title="Estimated AI Cost" value={summaryCost(summary)} detail={summaryCostDetail(summary)} /></Grid>
             <Grid size={{ xs: 12, md: 4 }}><MetricCard title="Not Eligible" value={String(summary.notEligibleCount)} detail="Governance/eligibility outcomes, excluded from the readiness rate." /></Grid>
           </Grid>
         </Box>
@@ -187,7 +186,7 @@ export function HomePage() {
                   <TableCell>{words(run.status)}</TableCell>
                   <TableCell align="right">{run.ticketsEvaluated}</TableCell>
                   <TableCell align="right">{run.engineeringReadyCount} / {run.intakeIncompleteCount}</TableCell>
-                  <TableCell align="right">{runCost(run)}</TableCell>
+                  <TableCell align="right">{formatCost(run.estimatedCost)}{costCoverage(run.estimatedCost) ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{costCoverage(run.estimatedCost)}</Typography> : null}</TableCell>
                 </TableRow>)}</TableBody>
               </Table>
             </TableContainer>

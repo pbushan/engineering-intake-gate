@@ -105,6 +105,7 @@ public sealed class OperationalEndpointTests
         Assert.Equal("acceptance-admin", newest.GetProperty("triggeredBy").GetProperty("username").GetString());
         Assert.Equal(1, newest.GetProperty("engineeringReadyCount").GetInt32());
         Assert.Equal(11, newest.GetProperty("tokenUsage").GetProperty("totalTokens").GetInt32());
+        Assert.Equal(JsonValueKind.Null, newest.GetProperty("estimatedCost").ValueKind);
 
         var parentId = runNowBody.GetProperty("runId").GetGuid();
         using var detailResponse = await fixture.Viewer.GetAsync($"/api/runs/{parentId:D}");
@@ -210,6 +211,8 @@ public sealed class OperationalEndpointTests
         Assert.Contains("/api/audit", document, StringComparison.Ordinal);
         Assert.Contains("SystemHealthResponse", document, StringComparison.Ordinal);
         Assert.Contains("HomeSummaryResponse", document, StringComparison.Ordinal);
+        Assert.Contains("pricedInteractions", document, StringComparison.Ordinal);
+        Assert.Contains("evaluationsWithPartialEstimate", document, StringComparison.Ordinal);
         Assert.Contains("ControlPlaneAuditPageResponse", document, StringComparison.Ordinal);
         Assert.DoesNotContain("EvaluationEvidence", document, StringComparison.Ordinal);
         Assert.DoesNotContain("RawWorkItem", document, StringComparison.Ordinal);
@@ -237,6 +240,11 @@ public sealed class OperationalEndpointTests
         Assert.Equal(1, summary.GetProperty("engineeringReadyRate").GetProperty("numerator").GetInt32());
         Assert.Equal(1, summary.GetProperty("engineeringReadyRate").GetProperty("denominator").GetInt32());
         Assert.Equal(100m, summary.GetProperty("engineeringReadyRate").GetProperty("percentage").GetDecimal());
+        var cost = summary.GetProperty("estimatedAiCost");
+        Assert.Equal(JsonValueKind.Null, cost.GetProperty("amount").ValueKind);
+        Assert.Equal(0, cost.GetProperty("evaluationsWithEstimate").GetInt32());
+        Assert.Equal(1, cost.GetProperty("evaluationsWithoutEstimate").GetInt32());
+        Assert.False(cost.GetProperty("complete").GetBoolean());
         Assert.InRange(summary.GetProperty("recentRuns").GetArrayLength(), 1, 8);
         Assert.Equal(providerCalls, fixture.Provider.CallCount);
 
