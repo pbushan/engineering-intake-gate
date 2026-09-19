@@ -38,6 +38,7 @@ public sealed class SqliteDatabaseMigratorTests : IDisposable
         Assert.Contains("runtime_configuration_generations", tables);
         Assert.Contains("active_runtime_configuration", tables);
         Assert.Contains("onboarding_profile_draft", tables);
+        Assert.Contains("ai_model_pricing_cache", tables);
         Assert.Equal(1L, await ScalarAsync<long>(path,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='ix_evaluation_audits_evaluated';"));
     }
@@ -148,6 +149,7 @@ public sealed class SqliteDatabaseMigratorTests : IDisposable
     [InlineData(10)] // immediately before immutable runtime generations
     [InlineData(11)] // runtime generations before onboarding draft persistence
     [InlineData(13)] // immediately previous schema
+    [InlineData(14)] // immediately before AI model pricing cache
     public async Task DB_001_Phase7_StrategicSchemaUpgradeMatrixPreservesApplicableState(int sourceVersion)
     {
         var path = Path.Combine(directory, $"strategic-v{sourceVersion}.db");

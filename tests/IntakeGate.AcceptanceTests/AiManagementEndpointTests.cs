@@ -262,6 +262,57 @@ public sealed class AiManagementEndpointTests
         Assert.Equal(diagnostic, metadata.GetProperty("verificationDiagnostic").GetString());
     }
 
+    [Fact]
+    public async Task AI_PRICING_001_PricingResolvesOnlyAfterConfirmationAndUnknownPricingIsNonBlocking()
+    {
+        await using var fixture = await Fixture.CreateAsync(profileConfigured: false);
+        using var client = fixture.Factory.CreateClient();
+        await AuthenticatedTestClient.AuthenticateAdminAsync(client);
+        await client.PutAsJsonAsync("/api/ai/providers/openai/credential/local",
+            new { replacement = KeyCanary });
+        (await client.PostAsync("/api/ai/providers/openai/credential-tests", null)).EnsureSuccessStatusCode();
+
+        var candidate = await client.PostAsJsonAsync("/api/ai/model-candidates/validate",
+            new { provider = "openai", model = "gpt-5.6-sol" });
+        candidate.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await client.GetAsync("/api/ai/pricing")).StatusCode);
+        var token = (await candidate.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("confirmationToken").GetString();
+        (await client.PostAsJsonAsync("/api/ai/model-candidates/confirm",
+            new { confirmationToken = token })).EnsureSuccessStatusCode();
+
+        var pricingResponse = await client.GetAsync("/api/ai/pricing");
+        pricingResponse.EnsureSuccessStatusCode();
+        var pricing = await pricingResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(pricing.GetProperty("available").GetBoolean());
+        Assert.Equal(4m, pricing.GetProperty("inputPerMillionTokens").GetDecimal());
+        Assert.Equal(0.4m, pricing.GetProperty("cachedInputPerMillionTokens").GetDecimal());
+        Assert.Equal(20m, pricing.GetProperty("outputPerMillionTokens").GetDecimal());
+        Assert.Equal("USD", pricing.GetProperty("currency").GetString());
+        Assert.False(pricing.GetProperty("stale").GetBoolean());
+        Assert.Equal(1L, await ScalarAsync<long>(fixture.DatabasePath,
+            "SELECT COUNT(*) FROM ai_model_pricing_cache WHERE provider = 'openai' AND model_id = 'gpt-5.6-sol';"));
+
+        var refresh = await client.PostAsync("/api/ai/pricing/refresh", null);
+        refresh.EnsureSuccessStatusCode();
+        Assert.True((await refresh.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("available").GetBoolean());
+
+        var unknownCandidate = await client.PostAsJsonAsync("/api/ai/model-candidates/validate",
+            new { provider = "openai", model = "valid-but-uncatalogued-model" });
+        unknownCandidate.EnsureSuccessStatusCode();
+        var unknownToken = (await unknownCandidate.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("confirmationToken").GetString();
+        (await client.PostAsJsonAsync("/api/ai/model-candidates/confirm",
+            new { confirmationToken = unknownToken })).EnsureSuccessStatusCode();
+        var unavailable = await client.GetFromJsonAsync<JsonElement>("/api/ai/pricing");
+        Assert.False(unavailable.GetProperty("available").GetBoolean());
+        Assert.Equal("valid-but-uncatalogued-model",
+            unavailable.GetProperty("model").GetString());
+        Assert.Equal(1L, await ScalarAsync<long>(fixture.DatabasePath,
+            "SELECT COUNT(*) FROM ai_setup_settings WHERE model_id = 'valid-but-uncatalogued-model';"));
+    }
+
     private static async Task LoginAsync(HttpClient client, string username, string password)
     {
         await AuthenticatedTestClient.RefreshCsrfTokenAsync(client);

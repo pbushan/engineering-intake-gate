@@ -3023,6 +3023,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ai/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AiModelPricingResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ai/pricing/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AiModelPricingResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ai/settings": {
         parameters: {
             query?: never;
@@ -3219,6 +3325,31 @@ export interface components {
             /** Format: int32 */
             timeoutSeconds: null | number | string;
             pricing: null | components["schemas"]["ModelPricingRequest"][];
+        };
+        AiModelPricingResponse: {
+            provider: string;
+            model: string;
+            available: boolean;
+            stale: boolean;
+            refreshFailed: boolean;
+            /** Format: double */
+            inputPerMillionTokens: null | number | string;
+            /** Format: double */
+            cachedInputPerMillionTokens: null | number | string;
+            /** Format: double */
+            outputPerMillionTokens: null | number | string;
+            currency: null | string;
+            source: null | string;
+            /** Format: uri */
+            sourceUri: null | string;
+            catalogVersion: null | string;
+            /** Format: date-time */
+            effectiveAtUtc: null | string;
+            /** Format: date-time */
+            lastVerifiedAtUtc: null | string;
+            /** Format: date-time */
+            expiresAtUtc: null | string;
+            sourceKind: null | string;
         };
         AiSettingsResponse: {
             profileConfigured: boolean;

@@ -14,7 +14,7 @@ Engineering Intake Gate applies one explicit, repeatable quality gate before inv
 
 - Executes one governed Azure DevOps saved query and evaluates eligible work items.
 - Combines deterministic eligibility, evidence normalization, secret redaction, validation, and decision handling with structured AI assessment.
-- Supports OpenAI and Anthropic, including credential verification, model discovery, and manual model-ID fallback.
+- Supports OpenAI and Anthropic, including credential verification, model discovery, manual model-ID fallback, and backend-owned estimated pricing for confirmed models.
 - Presents four distinct outcomes: **Engineering Ready**, **Intake Incomplete**, **Error**, and **Not Eligible**.
 - Supports manual single-ticket analysis, **Run Profile Now**, and Manual/Hourly/Daily/Weekly/Custom schedules.
 - Keeps manual analysis inside the configured saved-query and exclusion boundary.
@@ -30,7 +30,7 @@ Engineering Intake Gate applies one explicit, repeatable quality gate before inv
 
 | Setup and governance | Daily operations |
 |---|---|
-| [![Setup wizard](docs/images/02-setup-ado.png)](docs/PRODUCT_TOUR.md#first-run-setup) | [![Home operational overview](docs/images/07-home.png)](docs/PRODUCT_TOUR.md#home) |
+| [![AI model setup and estimated pricing](docs/images/03-setup-ai-model.png)](docs/PRODUCT_TOUR.md#ai-provider-and-model) | [![Home operational overview](docs/images/07-home.png)](docs/PRODUCT_TOUR.md#home) |
 | [![Saved-query preview](docs/images/05-query-preview.png)](docs/PRODUCT_TOUR.md#saved-query-preview) | [![Analyze Ticket](docs/images/08-analyze-ticket.png)](docs/PRODUCT_TOUR.md#analyze-ticket) |
 | [![Setup review](docs/images/06-setup-review.png)](docs/PRODUCT_TOUR.md#review-and-finish) | [![Evaluation detail](docs/images/11-evaluation-detail.png)](docs/PRODUCT_TOUR.md#evaluation-detail) |
 
@@ -89,7 +89,10 @@ flowchart TB
       Host --> Engine[Intake engine]
       Engine --> ADO[Azure DevOps adapter]
       Engine --> AI[AI provider factory]
-      CP --> DB[(SQLite)]
+      CP --> Pricing[Model pricing service]
+      Pricing --> Catalog[Versioned pricing catalog]
+      Pricing --> DB[(SQLite)]
+      CP --> DB
       Auth --> DB
       Runtime --> DB
       Scheduler --> DB
@@ -100,7 +103,7 @@ flowchart TB
     AI --> OpenAI[OpenAI]
     AI --> Anthropic[Anthropic]
 
-    DB --- Data[Profile + policy\nEncrypted secrets\nRuntime generations\nRuns + evaluations\nAudit\nDiscovery + reconciliation]
+    DB --- Data[Profile + policy\nEncrypted secrets\nRuntime generations\nPricing cache + provenance\nRuns + evaluations\nAudit\nDiscovery + reconciliation]
 ```
 
 Important boundaries:
@@ -216,6 +219,10 @@ Choose either a locally encrypted PAT or an advanced environment-variable refere
 
 Choose OpenAI or Anthropic, save an API key locally or as an environment reference, run verification, discover models, and confirm one. If discovery is unavailable, enter a model ID manually and validate it. An already confirmed model is not erased by a later discovery outage.
 
+After confirmation, the backend resolves estimated input, cached-input when applicable, and output pricing from its versioned provider-neutral catalog. Results retain currency, source, catalog version, effective date, and verification time in SQLite. They are fresh for seven days by default (`AiPricing:FreshnessDays`), and **Refresh pricing** bypasses that TTL without deleting the last valid value if refresh fails. Unknown pricing never prevents confirmation or Continue. Pricing is an estimate only; the provider determines actual charges.
+
+The discovered display price is intentionally separate from the profile's optional run-estimation pricing entries. This change does not reprice historical evaluations or add billing reconciliation. See [AI model pricing](docs/AI_MODEL_PRICING.md) for catalog scope, precedence, and maintenance.
+
 ### 4. System defaults and profile/policy
 
 Initialize the server-owned draft, then define versioned criteria and evaluation guidance. Configure distinct Engineering Ready/Intake Incomplete tags, policy URL/version, exclusions, retry/concurrency settings, AI timeout, audit retention, and bounded content/attachment limits. These settings describe intake sufficiency only; they must not encode defect truth, ownership, severity, or priority decisions.
@@ -293,6 +300,8 @@ Important contents:
 
 **A valid restore using locally encrypted credentials requires a consistent SQLite/application-state backup and the matching `intake-gate.secret-key`.** Losing or mismatching the key intentionally makes those credentials undecryptable. Preserve the Data Protection key ring to retain existing sessions; otherwise users must sign in again. The product does not implement automated backups.
 
+The database also contains the model-pricing cache and its source/freshness metadata. Schema 15 adds this table additively and does not rewrite profile, credential, or historical run data.
+
 ## Security
 
 - Local Admin/Viewer authentication uses ASP.NET Core's adaptive password hasher.
@@ -336,6 +345,7 @@ These are deliberate first-release boundaries:
 - No persistent logs UI, notifications, or advanced analytics.
 - No automatic backup system.
 - No multi-profile routing, selection, cloning, or archival.
+- Pricing refresh currently re-resolves the reviewed bundled catalog; no provider pricing endpoint, website scraping, invoice integration, regional/long-context pricing, or automatic run-level use of discovered prices is implemented.
 
 ## Engineering highlights
 

@@ -19,16 +19,20 @@ flowchart LR
       API[Operator API]
       Auth[Authentication + RBAC]
       Setup[Setup + control plane]
+      Pricing[Model pricing resolution]
       Runtime[Generation manager]
       Scheduler[Hosted scheduler]
       Engine[Intake orchestration]
       API --> Engine
       Setup --> Runtime
+      Setup --> Pricing
       Scheduler --> Engine
     end
 
     Host --> HostBoundary
     HostBoundary --> SQLite[(SQLite)]
+    Pricing --> Catalog[Versioned bundled catalog]
+    Pricing --> SQLite
     Engine --> ADO[Azure DevOps HTTP adapter]
     Engine --> AI[OpenAI or Anthropic adapter]
 ```
@@ -53,7 +57,7 @@ Tests -> layer under test + deterministic fakes
 
 - **Domain** contains provider-neutral runtime records.
 - **Application** owns workflows, validation, policy/evidence/decision contracts, repository ports, and provider interfaces.
-- **Infrastructure** implements SQLite, Azure DevOps, OpenAI, Anthropic, YAML legacy import, and content-processing adapters.
+- **Infrastructure** implements SQLite, the versioned model-pricing catalog, Azure DevOps, OpenAI, Anthropic, YAML legacy import, and content-processing adapters.
 - **Host** is the ASP.NET Core composition root, HTTP surface, authentication boundary, and hosted scheduler.
 - **Web** is the React presentation/control plane and consumes checked OpenAPI-derived contracts.
 
@@ -138,6 +142,14 @@ Deterministic validation rejects malformed JSON, unknown properties, unsupported
 
 AI never receives an Azure DevOps client or mutation capability and never selects tags/comments. It may assess contextual criterion applicability and sufficiency, identify deficiencies/ambiguities, and produce a grounded intake summary. It may not decide defect truth, root cause, solution, ownership, severity, priority, or commitment.
 
+## Model pricing boundary
+
+Model validation and pricing resolution are separate operations. A confirmed provider/model key may be passed to the provider-neutral pricing service; unvalidated input never is. The service checks a SQLite manual override first, then ordered catalog sources, and finally reports unavailable without inventing a price. The initial source is a reviewed, versioned embedded catalog rather than a provider pricing endpoint or website scraper.
+
+Resolved records are fresh for a configurable TTL that defaults to seven days. Normal reads avoid repeated source work. Stale reads and explicit forced refresh resolve into a candidate record, then atomically replace cached catalog data only after success. Failure preserves the previous values, provenance, and verification time and returns an explicit stale/refresh-failed state. Manual overrides are not replaced by catalog refresh.
+
+The API exposes only estimates for the confirmed model. It includes nullable cached-input pricing because that dimension does not exist for every model. Future batch, long-context, regional, cache-write, tool, and marketplace dimensions require additive contracts; they are not collapsed into the current base token prices. The discovery cache is deliberately not connected to historical run-cost calculation in this change.
+
 ## Decision and mutation safety
 
 Only deterministic code maps a trusted result to the closed proposed-effect vocabulary:
@@ -170,6 +182,7 @@ Durable state includes:
 - singleton profile/policy and setup draft/progress;
 - local users and credential metadata/ciphertext;
 - confirmed Azure DevOps and AI configuration;
+- provider/model pricing cache with exact decimal values, provenance, catalog/effective/verification/expiry metadata, and manual-override source kind;
 - immutable runtime generations and active pointer;
 - discovery registrations, checkpoints, and leases;
 - run/evaluation audit, usage/cost, and control-plane audit;

@@ -12,6 +12,7 @@ import {
   installMockBackend,
   profileState,
   readyAiSettings,
+  readyModelPricing,
   readyAzureDevOpsSettings,
   verifiedCredential,
 } from './mockBackend';
@@ -149,6 +150,106 @@ describe('Phase 4B authoritative setup wizard', () => {
     expect(await screen.findByText('The AI provider is temporarily unavailable. Try again later; the credential was not marked invalid.')).toBeVisible();
     expect(screen.getByLabelText('Replacement API key')).toHaveAttribute('aria-invalid', 'false');
     expect(screen.getByText(/Confirmed model:/)).toHaveTextContent('test-model');
+  });
+
+  it('AI-PRICING-001 loads and displays pricing only for the confirmed model', async () => {
+    const backend = renderSetup(staged({ lastVisitedStep: 'Ai' }));
+
+    expect(await screen.findByRole('heading', { name: 'Estimated model pricing' })).toBeVisible();
+    expect(await screen.findByText('$4.00')).toBeVisible();
+    expect(screen.getByText('$0.40')).toBeVisible();
+    expect(screen.getByText('$20.00')).toBeVisible();
+    expect(screen.getByText(/Last checked:/)).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Official test catalog' })).toHaveAttribute(
+      'href', 'https://example.test/pricing');
+    expect(screen.getByText(/Pricing is provided for estimation purposes/)).toBeVisible();
+    expect(backend.calls.filter((call) => call.path === '/api/ai/pricing')).toHaveLength(1);
+  });
+
+  it('AI-PRICING-002 manual typing does not trigger pricing and unavailable pricing does not invent values', async () => {
+    const backend = renderSetup(staged({ aiModelConfigured: false, lastVisitedStep: 'Ai' }), {
+      aiSettings: { ...readyAiSettings, model: null, modelConfirmed: false, ready: false },
+      modelPricing: { ...readyModelPricing, available: false, inputPerMillionTokens: null,
+        cachedInputPerMillionTokens: null, outputPerMillionTokens: null },
+    });
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Select a model' });
+    await user.click(screen.getByRole('button', { name: 'Enter model ID manually' }));
+    await user.type(screen.getByLabelText('Model ID'), 'unvalidated-model');
+
+    expect(backend.calls.some((call) => call.path === '/api/ai/pricing')).toBe(false);
+    expect(screen.queryByRole('heading', { name: 'Estimated model pricing' })).not.toBeInTheDocument();
+  });
+
+  it('AI-PRICING-003 shows unavailable and stale states without a false cached-input value', async () => {
+    const backend = renderSetup(staged({ lastVisitedStep: 'Ai' }), {
+      modelPricing: { ...readyModelPricing, available: false, inputPerMillionTokens: null,
+        cachedInputPerMillionTokens: null, outputPerMillionTokens: null },
+    });
+    expect(await screen.findByText('Pricing unavailable for this model.')).toBeVisible();
+    expect(screen.queryByText('Cached input')).not.toBeInTheDocument();
+    expect(backend.calls.some((call) => call.path === '/api/ai/pricing')).toBe(true);
+  });
+
+  it('AI-PRICING-004 refreshes pricing and preserves the last displayed value on refresh failure', async () => {
+    renderSetup(staged({ lastVisitedStep: 'Ai' }), { pricingRefreshFails: true });
+    const user = userEvent.setup();
+    expect(await screen.findByText('$4.00')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Refresh pricing' }));
+
+    expect(await screen.findByText(/Unable to refresh current pricing/)).toBeVisible();
+    expect(screen.getByText('$4.00')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Refresh pricing' })).toBeEnabled();
+  });
+
+  it('AI-PRICING-004 forced refresh reports success and calls the refresh endpoint', async () => {
+    const backend = renderSetup(staged({ lastVisitedStep: 'Ai' }));
+    const user = userEvent.setup();
+    expect(await screen.findByText('$4.00')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Refresh pricing' }));
+
+    expect(await screen.findByText('Model pricing refreshed.')).toBeVisible();
+    expect(backend.calls.filter((call) => call.path === '/api/ai/pricing/refresh' && call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('AI-PRICING-004 marks an expired stored value as stale', async () => {
+    renderSetup(staged({ lastVisitedStep: 'Ai' }), {
+      modelPricing: { ...readyModelPricing, stale: true, expiresAtUtc: '2026-09-11T12:15:00Z' },
+    });
+
+    expect(await screen.findByText(/This pricing may be stale/)).toBeVisible();
+    expect(screen.getByText('$4.00')).toBeVisible();
+  });
+
+  it('AI-PRICING-005 provider changes clear old pricing', async () => {
+    const backend = renderSetup(staged({ lastVisitedStep: 'Ai' }), { pricingEndpointFails: true });
+    const user = userEvent.setup();
+    expect(await screen.findByText(/Pricing is temporarily unavailable/)).toBeVisible();
+    await user.click(screen.getByLabelText('Anthropic / Claude'));
+    expect(screen.queryByRole('heading', { name: 'Estimated model pricing' })).not.toBeInTheDocument();
+    expect(backend.calls.filter((call) => call.path === '/api/ai/pricing')).toHaveLength(1);
+  });
+
+  it('AI-PRICING-005 model edits clear pricing for the previously confirmed model', async () => {
+    renderSetup(staged({ lastVisitedStep: 'Ai' }));
+    const user = userEvent.setup();
+    expect(await screen.findByText('$4.00')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Enter model ID manually' }));
+    await user.clear(screen.getByLabelText('Model ID'));
+    await user.type(screen.getByLabelText('Model ID'), 'different-model');
+
+    expect(screen.queryByRole('heading', { name: 'Estimated model pricing' })).not.toBeInTheDocument();
+  });
+
+  it('AI-PRICING-006 pricing lookup failure does not block Continue', async () => {
+    renderSetup(staged({ lastVisitedStep: 'Ai' }), { pricingEndpointFails: true });
+    const user = userEvent.setup();
+    expect(await screen.findByText(/Pricing is temporarily unavailable/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('heading', { name: 'System defaults' })).toBeVisible();
   });
 
   it('AI-010 manual model entry still requires confirmation and handles a stale candidate', async () => {

@@ -62,6 +62,7 @@ import { ValidationSummary } from '../components/ValidationSummary';
 import type {
   AiModelCandidate,
   AiModelDescriptor,
+  AiModelPricing,
   AiProvider,
   AiSettings,
   AzureDevOpsQueryCandidate,
@@ -228,6 +229,29 @@ function CredentialStatus({ metadata }: { metadata: CredentialMetadata }) {
   );
 }
 
+function PricingValue({ label, amount, currency }: {
+  label: string;
+  amount: number | string | null;
+  currency: string | null;
+}) {
+  if (amount == null || !currency) return null;
+  const formatted = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(Number(amount));
+  return (
+    <Grid size={{ xs: 12, sm: 4 }}>
+      <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+        <Typography variant="caption" color="text.secondary">{label}</Typography>
+        <Typography variant="h3">{formatted}</Typography>
+        <Typography variant="body2" color="text.secondary">per 1M tokens · {currency}</Typography>
+      </Paper>
+    </Grid>
+  );
+}
+
 export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
   const editing = mode === 'edit';
   const navigate = useNavigate();
@@ -262,6 +286,10 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
   const [modelId, setModelId] = useState('');
   const [manualModel, setManualModel] = useState(false);
   const [modelCandidate, setModelCandidate] = useState<AiModelCandidate | null>(null);
+  const [modelPricing, setModelPricing] = useState<AiModelPricing | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingLoadFailed, setPricingLoadFailed] = useState(false);
+  const pricingRequestKeyRef = useRef<string | null>(null);
 
   const fetchData = useCallback(async (): Promise<WizardData> => {
     const [setup, defaults, onboardingDraft, profile, adoCredential, adoSettings, aiSettings, openai, anthropic] = await Promise.all([
@@ -342,6 +370,35 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [draftDirty]);
+
+  useEffect(() => {
+    const settings = data?.aiSettings;
+    const confirmed = settings?.modelConfirmed && settings.provider === provider &&
+      settings.model === modelId.trim();
+    if (!confirmed || !settings.provider || !settings.model) {
+      pricingRequestKeyRef.current = null;
+      return;
+    }
+    const key = `${settings.provider}:${settings.model}`;
+    if (pricingRequestKeyRef.current === key) return;
+    pricingRequestKeyRef.current = key;
+    void Promise.resolve().then(() => {
+      if (pricingRequestKeyRef.current !== key) return null;
+      setPricingLoading(true);
+      setPricingLoadFailed(false);
+      return apiClient.getAiModelPricing();
+    }).then((pricing) => {
+      if (!pricing) return;
+      if (pricingRequestKeyRef.current !== key) return;
+      setModelPricing(pricing);
+    }).catch(() => {
+      if (pricingRequestKeyRef.current !== key) return;
+      setModelPricing(null);
+      setPricingLoadFailed(true);
+    }).finally(() => {
+      if (pricingRequestKeyRef.current === key) setPricingLoading(false);
+    });
+  }, [data?.aiSettings, provider, modelId]);
 
   const action = async (name: string, task: () => Promise<string | void>) => {
     setBusy(name);
@@ -537,6 +594,10 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
   if (!data) return <Alert severity="error"><AlertTitle>Setup could not be loaded</AlertTitle>{error?.message ?? 'Try again.'}<Button onClick={() => window.location.reload()}>Reload</Button></Alert>;
 
   const currentCredential = data.aiCredentials[provider] ?? emptyCredential;
+  const confirmedModelSelected = data.aiSettings.modelConfirmed &&
+    data.aiSettings.provider === provider && data.aiSettings.model === modelId.trim();
+  const visibleModelPricing = modelPricing?.provider === provider && modelPricing.model === modelId.trim()
+    ? modelPricing : null;
   const draft = draftValues;
   const processing = draft?.processing;
   const content = processing?.contentLimits;
@@ -660,6 +721,34 @@ export function SetupWizardPage({ mode = 'setup' }: SetupWizardPageProps) {
               })}>{busy === 'model-confirm' ? 'Confirming…' : `Confirm ${modelCandidate.model}`}</Button> : null}
             </Stack>
           </SectionCard>
+          {confirmedModelSelected ? (
+            <SectionCard title="Estimated model pricing" description="Backend-owned catalog pricing for the confirmed model.">
+              {pricingLoading ? <Stack direction="row" spacing={1.5} role="status" aria-live="polite" sx={{ alignItems: 'center' }}><CircularProgress size={20} /><Typography>Loading model pricing…</Typography></Stack> : null}
+              {!pricingLoading && pricingLoadFailed ? <Alert severity="warning">Pricing is temporarily unavailable. The confirmed model remains usable.</Alert> : null}
+              {!pricingLoading && visibleModelPricing && !visibleModelPricing.available ? <Alert severity={visibleModelPricing.refreshFailed ? 'warning' : 'info'}>{visibleModelPricing.refreshFailed ? 'Unable to refresh pricing. Pricing remains unavailable, but the confirmed model is still usable.' : 'Pricing unavailable for this model.'}</Alert> : null}
+              {!pricingLoading && visibleModelPricing?.available ? (
+                <Stack spacing={2} aria-live="polite">
+                  {visibleModelPricing.refreshFailed ? <Alert severity="warning">Unable to refresh current pricing. Showing pricing last verified on {displayDate(visibleModelPricing.lastVerifiedAtUtc)}.</Alert> : visibleModelPricing.stale ? <Alert severity="warning">This pricing may be stale. Last verified on {displayDate(visibleModelPricing.lastVerifiedAtUtc)}.</Alert> : null}
+                  <Grid container spacing={2}>
+                    <PricingValue label="Input" amount={visibleModelPricing.inputPerMillionTokens} currency={visibleModelPricing.currency} />
+                    {visibleModelPricing.cachedInputPerMillionTokens != null ? <PricingValue label="Cached input" amount={visibleModelPricing.cachedInputPerMillionTokens} currency={visibleModelPricing.currency} /> : null}
+                    <PricingValue label="Output" amount={visibleModelPricing.outputPerMillionTokens} currency={visibleModelPricing.currency} />
+                  </Grid>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Last checked: {displayDate(visibleModelPricing.lastVerifiedAtUtc)}</Typography>
+                    <Typography variant="body2" color="text.secondary">Source: {visibleModelPricing.sourceUri ? <Link href={visibleModelPricing.sourceUri} target="_blank" rel="noreferrer">{visibleModelPricing.source}</Link> : visibleModelPricing.source}</Typography>
+                  </Box>
+                </Stack>
+              ) : null}
+              <Alert severity="info" icon={<InfoOutlined />}>Pricing is provided for estimation purposes and may change at any time. Actual charges are determined by your AI provider.</Alert>
+              <Button variant="outlined" startIcon={<RefreshRounded />} sx={{ alignSelf: 'flex-start' }} disabled={busy !== null || pricingLoading} onClick={() => void action('pricing-refresh', async () => {
+                const refreshed = await apiClient.refreshAiModelPricing();
+                setModelPricing(refreshed);
+                setPricingLoadFailed(false);
+                return refreshed.refreshFailed ? undefined : refreshed.available ? 'Model pricing refreshed.' : 'Pricing remains unavailable for this model.';
+              })}>{busy === 'pricing-refresh' ? 'Refreshing…' : 'Refresh pricing'}</Button>
+            </SectionCard>
+          ) : null}
         </Stack>
       ) : null}
 
