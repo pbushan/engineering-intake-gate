@@ -42,7 +42,7 @@ public sealed class IntakeRunService
     private readonly IAuditRepository auditRepository;
     private readonly IClock clock;
     private readonly IRunAuditLog log;
-    private readonly ICostEstimator costEstimator;
+    private readonly IAiCostAccountingService costAccounting;
     private readonly IWorkItemSource? workItemSource;
     private readonly IWorkItemWriter? workItemWriter;
 
@@ -53,7 +53,9 @@ public sealed class IntakeRunService
         IAuditRepository auditRepository,
         IClock clock,
         IRunAuditLog log)
-        : this(preprocessor, evaluationService, decisionHandler, auditRepository, clock, log, new CostEstimator()) { }
+        : this(preprocessor, evaluationService, decisionHandler, auditRepository, clock, log,
+            new UnavailableAiCostAccountingService())
+    { }
 
     public IntakeRunService(
         IEvidencePreprocessor preprocessor,
@@ -62,8 +64,8 @@ public sealed class IntakeRunService
         IAuditRepository auditRepository,
         IClock clock,
         IRunAuditLog log,
-        ICostEstimator costEstimator)
-        : this(preprocessor, evaluationService, decisionHandler, auditRepository, clock, log, costEstimator, null, null) { }
+        IAiCostAccountingService costAccounting)
+        : this(preprocessor, evaluationService, decisionHandler, auditRepository, clock, log, costAccounting, null, null) { }
 
     public IntakeRunService(
         IEvidencePreprocessor preprocessor,
@@ -72,7 +74,7 @@ public sealed class IntakeRunService
         IAuditRepository auditRepository,
         IClock clock,
         IRunAuditLog log,
-        ICostEstimator costEstimator,
+        IAiCostAccountingService costAccounting,
         IWorkItemSource? workItemSource,
         IWorkItemWriter? workItemWriter)
     {
@@ -82,7 +84,7 @@ public sealed class IntakeRunService
         this.auditRepository = auditRepository;
         this.clock = clock;
         this.log = log;
-        this.costEstimator = costEstimator;
+        this.costAccounting = costAccounting;
         this.workItemSource = workItemSource;
         this.workItemWriter = workItemWriter;
     }
@@ -143,11 +145,32 @@ public sealed class IntakeRunService
         log.Decision(runId, evaluationId, evaluation.Outcome, evaluation.ProcessingStatus,
             configuration.Profile.Processing.ExecutionMode, decision.ProposedMutations.Count);
 
-        var completedAt = clock.UtcNow.ToUniversalTime();
         var isPass = evaluation.Outcome == IntakeDecision.Pass;
         var isFail = evaluation.Outcome == IntakeDecision.Fail;
         var isError = evaluation.ProcessingStatus == EvaluationProcessingStatus.Error;
-        var estimatedCost = costEstimator.Estimate(configuration.Profile.Ai, configuration.Profile.Ai.Model, evaluation.TokenUsage);
+        AiCostAccountingResult accounting;
+        try
+        {
+            accounting = await costAccounting.EstimateAsync(
+                configuration.Profile.Ai.Provider,
+                configuration.Profile.Ai.Model,
+                evaluation.ProviderInteractions,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            accounting = await new UnavailableAiCostAccountingService().EstimateAsync(
+                configuration.Profile.Ai.Provider,
+                configuration.Profile.Ai.Model,
+                evaluation.ProviderInteractions,
+                CancellationToken.None);
+        }
+        var estimatedCost = accounting.EstimatedCost;
+        var completedAt = clock.UtcNow.ToUniversalTime();
         var run = new RunAuditRecord(
             runId, triggerType, startedAt, completedAt, configuration.Profile.Processing.ExecutionMode,
             configuration.Profile.Identity.Id, configuration.Policy.Identity.Version, configuration.PolicyFingerprint,
@@ -189,6 +212,7 @@ public sealed class IntakeRunService
             ExclusionReason = exclusionReason,
             TriggeredBy = triggeredBy,
             ParentRunId = parentRunId,
+            AiInteractions = accounting.Interactions,
             AttachmentProcessing = evidence.Attachments.Select(attachment => new AttachmentProcessingAuditRecord(
                 attachment.Reference,
                 attachment.FileName,

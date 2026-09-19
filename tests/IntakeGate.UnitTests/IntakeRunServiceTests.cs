@@ -128,6 +128,9 @@ public sealed class IntakeRunServiceTests
         Assert.Equal(saved.Evaluation.TokenUsage, saved.Run.TokenUsage);
         Assert.Equal(0.00009m, saved.Evaluation.EstimatedCost!.Amount);
         Assert.Equal(saved.Evaluation.EstimatedCost, saved.Run.EstimatedCost);
+        Assert.Equal(2, saved.Evaluation.AiInteractions.Count);
+        Assert.All(saved.Evaluation.AiInteractions,
+            interaction => Assert.NotNull(interaction.EstimatedTotalCost));
         Assert.Equal(["req-1", "req-2"], saved.Evaluation.ProviderRequestIds);
         Assert.Equal("reported-model", saved.Evaluation.ProviderReportedModel);
     }
@@ -224,11 +227,11 @@ public sealed class IntakeRunServiceTests
     private static IntakeRunService Service(IAuditRepository repository, IIntakeAiProvider provider) => new(
         new StubPreprocessor(),
         new IntakeEvaluationService(new EvaluationRequestBuilder(), provider, new EvaluationResponseParser(), new EvaluationContractValidator(), new NullEvaluationLog()),
-        new IntakeDecisionHandler(new IntakeCommentRenderer()), repository, new FixedClock(), new NullRunAuditLog(), new CostEstimator());
+        new IntakeDecisionHandler(new IntakeCommentRenderer()), repository, new FixedClock(), new NullRunAuditLog(), new StubCostAccounting());
 
     private static IntakeRunService LiveService(LiveAuditRepository repository, IWorkItemSource source, IWorkItemWriter writer) => new(
         new StubPreprocessor(), new StubEvaluationService(), new IntakeDecisionHandler(new IntakeCommentRenderer()),
-        repository, new FixedClock(), new NullRunAuditLog(), new CostEstimator(), source, writer);
+        repository, new FixedClock(), new NullRunAuditLog(), new StubCostAccounting(), source, writer);
 
     private static DeploymentConfiguration LiveConfiguration() => Configuration() with
     {
@@ -275,6 +278,41 @@ public sealed class IntakeRunServiceTests
             Task.FromResult(new EvaluationProcessingResult(EvaluationProcessingStatus.Completed,
                 new EvaluationResult(evaluationId, IntakeDecision.Pass, "policy", "1", "sha256:abc", EvaluatorPrompt.Version,
                     ["problem"], ["problem"], [], [], "Grounded summary.", "fake", "scripted"), null, 1));
+    }
+
+    private sealed class StubCostAccounting : IAiCostAccountingService
+    {
+        public Task<AiCostAccountingResult> EstimateAsync(
+            string configuredProvider,
+            string configuredModel,
+            IReadOnlyList<AiProviderInteractionUsage> interactions,
+            CancellationToken cancellationToken = default)
+        {
+            var records = interactions.Select(interaction =>
+            {
+                if (interaction.TokenUsage is not { } usage)
+                    return new AiInteractionCostRecord(interaction.Attempt,
+                        interaction.RequestedProviderIdentifier, interaction.RequestedModelIdentifier,
+                        configuredProvider, interaction.ProviderReportedModel ?? configuredModel,
+                        interaction.ProviderRequestId, null, null, null, null, null);
+                var input = usage.InputTokens / 1_000_000m;
+                var output = usage.OutputTokens / 1_000_000m * 10m;
+                return new AiInteractionCostRecord(interaction.Attempt,
+                    interaction.RequestedProviderIdentifier, interaction.RequestedModelIdentifier,
+                    configuredProvider, interaction.ProviderReportedModel ?? configuredModel,
+                    interaction.ProviderRequestId, usage, input, output, input + output, null);
+            }).ToArray();
+            var known = records.Where(record => record.EstimatedTotalCost is not null).ToArray();
+            EstimatedCost? total = known.Length == 0 ? null : new EstimatedCost(
+                known.Sum(record => record.EstimatedTotalCost!.Value), "USD")
+            {
+                Complete = known.Length == records.Length,
+                PricedInteractions = known.Length,
+                TotalInteractions = records.Length,
+                PricingIdentity = "synthetic-v1"
+            };
+            return Task.FromResult(new AiCostAccountingResult(total, records));
+        }
     }
 
     private sealed class FixedClock : IClock

@@ -443,7 +443,9 @@ builder.Services.AddSingleton<IIntakeAiProvider>(services =>
     };
 });
 builder.Services.AddSingleton<IIntakeEvaluationService, IntakeEvaluationService>();
-builder.Services.AddSingleton<ICostEstimator, CostEstimator>();
+builder.Services.AddSingleton<CostEstimator>();
+builder.Services.AddSingleton<IAiCostAccountingLog, StructuredAiCostAccountingLog>();
+builder.Services.AddSingleton<IAiCostAccountingService, AiCostAccountingService>();
 builder.Services.AddSingleton<IIntakeCommentRenderer, IntakeCommentRenderer>();
 builder.Services.AddSingleton<IIntakeDecisionHandler, IntakeDecisionHandler>();
 builder.Services.AddSingleton<IRunAuditLog, StructuredRunAuditLog>();
@@ -656,7 +658,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test"))
             IAuditRepository auditRepository,
             IClock clock,
             IRunAuditLog runAuditLog,
-            ICostEstimator costEstimator,
+            IAiCostAccountingService costAccounting,
             CancellationToken cancellationToken) =>
         {
             if (!configurationState.IsConfigured) return ProfileRequiredUnavailable();
@@ -671,7 +673,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test"))
                 contractValidator,
                 evaluationLog);
             var runService = new IntakeRunService(
-                preprocessor, evaluationService, decisionHandler, auditRepository, clock, runAuditLog, costEstimator);
+                preprocessor, evaluationService, decisionHandler, auditRepository, clock, runAuditLog, costAccounting);
             try
             {
                 return TypedResults.Ok(await runService.ExecuteAsync(

@@ -41,6 +41,7 @@ public sealed class IntakeEvaluationService(
         var hasUsage = false;
         string? reportedModel = null;
         var requestIds = new List<string>();
+        var interactions = new List<AiProviderInteractionUsage>();
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
@@ -73,6 +74,14 @@ public sealed class IntakeEvaluationService(
             }
             reportedModel = response.Metadata?.ProviderReportedModel ?? reportedModel;
             if (!string.IsNullOrWhiteSpace(response.Metadata?.ProviderRequestId)) requestIds.Add(response.Metadata.ProviderRequestId);
+            interactions.Add(new AiProviderInteractionUsage(
+                attempt,
+                request.ProviderIdentifier,
+                request.ModelIdentifier,
+                request.ProviderIdentifier,
+                response.Metadata?.ProviderReportedModel,
+                response.Metadata?.ProviderRequestId,
+                response.Metadata?.TokenUsage));
             var aggregateUsage = hasUsage ? new TokenUsage(inputTokens, outputTokens, totalTokens) : null;
 
             if (response.Failure is not null)
@@ -88,7 +97,7 @@ public sealed class IntakeEvaluationService(
                     LatencyMilliseconds = stopwatch.ElapsedMilliseconds
                 });
                 if (retry) continue;
-                return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Error, null, new EvaluationFailure(response.Failure.SafeCategory), attempt), aggregateUsage, reportedModel, requestIds);
+                return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Error, null, new EvaluationFailure(response.Failure.SafeCategory), attempt), aggregateUsage, reportedModel, requestIds, interactions);
             }
 
             if (!responseParser.TryParseResponse(response.StructuredPayload, out var untrusted, out var parseFailure))
@@ -103,7 +112,7 @@ public sealed class IntakeEvaluationService(
                     LatencyMilliseconds = stopwatch.ElapsedMilliseconds
                 });
                 if (retry) continue;
-                return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Error, null, new EvaluationFailure(parseFailure), attempt), aggregateUsage, reportedModel, requestIds);
+                return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Error, null, new EvaluationFailure(parseFailure), attempt), aggregateUsage, reportedModel, requestIds, interactions);
             }
             if (!contractValidator.TryValidate(untrusted!, request, out var trusted, out var validationFailure))
             {
@@ -117,7 +126,7 @@ public sealed class IntakeEvaluationService(
                     LatencyMilliseconds = stopwatch.ElapsedMilliseconds
                 });
                 if (retry) continue;
-                return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Error, null, new EvaluationFailure(validationFailure), attempt), aggregateUsage, reportedModel, requestIds);
+                return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Error, null, new EvaluationFailure(validationFailure), attempt), aggregateUsage, reportedModel, requestIds, interactions);
             }
 
             evaluationLog.EvaluationAttempt(new EvaluationLogEntry(request.EvaluationId, request.ProviderIdentifier, request.ModelIdentifier,
@@ -128,7 +137,7 @@ public sealed class IntakeEvaluationService(
                 TokenUsage = response.Metadata?.TokenUsage,
                 LatencyMilliseconds = stopwatch.ElapsedMilliseconds
             });
-            return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Completed, trusted, null, attempt), aggregateUsage, reportedModel, requestIds);
+            return WithMetadata(new EvaluationProcessingResult(EvaluationProcessingStatus.Completed, trusted, null, attempt), aggregateUsage, reportedModel, requestIds, interactions);
         }
 
         throw new InvalidOperationException("Evaluation attempt bounds must produce a result.");
@@ -138,10 +147,12 @@ public sealed class IntakeEvaluationService(
         EvaluationProcessingResult result,
         TokenUsage? usage,
         string? reportedModel,
-        IReadOnlyList<string> requestIds) => result with
+        IReadOnlyList<string> requestIds,
+        IReadOnlyList<AiProviderInteractionUsage> interactions) => result with
         {
             TokenUsage = usage,
             ProviderReportedModel = reportedModel,
-            ProviderRequestIds = requestIds.ToArray()
+            ProviderRequestIds = requestIds.ToArray(),
+            ProviderInteractions = interactions.ToArray()
         };
 }

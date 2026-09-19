@@ -221,7 +221,7 @@ public sealed class AiProviderAdapterTests
             var service = new IntakeRunService(
                 new EvidencePreprocessor(new HtmlContentNormalizer(), new SecretRedactor(), new NoOpEvidenceLog()),
                 evaluationService, new IntakeDecisionHandler(new IntakeCommentRenderer()), repository,
-                new FixedClock(), new NullRunAuditLog(), new CostEstimator());
+                new FixedClock(), new NullRunAuditLog(), new UnavailableAiCostAccountingService());
 
             var result = await service.ExecuteAsync(new RawWorkItem("42", "1", "Generic", "Title", description: "Useful context."),
                 configuration, RunTriggerType.ManualWorkItem, "phase6-contract");
