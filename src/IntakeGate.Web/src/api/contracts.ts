@@ -7,6 +7,7 @@ export type AiModelConfirmation = components['schemas']['ConfirmAiModelResponse'
 export type AiModelDiscovery = components['schemas']['AiModelDiscoveryResponse'];
 export type AiModelDescriptor = components['schemas']['AiModelDescriptor'];
 export type AiSettings = components['schemas']['AiSettingsResponse'];
+export type AiModelPricing = components['schemas']['AiModelPricingResponse'];
 export type AzureDevOpsConnectionTest = components['schemas']['ConnectionTestResponse'];
 export type AzureDevOpsQueryCandidate = components['schemas']['ValidateSavedQueryResponse'];
 export type AzureDevOpsQueryConfirmation = components['schemas']['ConfirmSavedQueryResponse'];

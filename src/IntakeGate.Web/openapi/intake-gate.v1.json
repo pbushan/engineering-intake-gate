@@ -2655,6 +2655,84 @@
         }
       }
     },
+    "/api/ai/pricing": {
+      "get": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModelPricingResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/pricing/refresh": {
+      "post": {
+        "tags": [
+          "IntakeGate.Host"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModelPricingResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ai/settings": {
       "get": {
         "tags": [
@@ -2955,6 +3033,58 @@
               "$ref": "#/components/schemas/ModelPricingRequest"
             }
           }
+        },
+        "additionalProperties": false
+      },
+      "AiModelPricingResponse": {
+        "required": [
+          "provider",
+          "model",
+          "available",
+          "stale",
+          "refreshFailed",
+          "inputPerMillionTokens",
+          "cachedInputPerMillionTokens",
+          "outputPerMillionTokens",
+          "currency",
+          "source",
+          "sourceUri",
+          "catalogVersion",
+          "effectiveAtUtc",
+          "lastVerifiedAtUtc",
+          "expiresAtUtc",
+          "sourceKind"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string" },
+          "model": { "type": "string" },
+          "available": { "type": "boolean" },
+          "stale": { "type": "boolean" },
+          "refreshFailed": { "type": "boolean" },
+          "inputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": ["null", "number", "string"],
+            "format": "double"
+          },
+          "cachedInputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": ["null", "number", "string"],
+            "format": "double"
+          },
+          "outputPerMillionTokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": ["null", "number", "string"],
+            "format": "double"
+          },
+          "currency": { "type": ["null", "string"] },
+          "source": { "type": ["null", "string"] },
+          "sourceUri": { "type": ["null", "string"], "format": "uri" },
+          "catalogVersion": { "type": ["null", "string"] },
+          "effectiveAtUtc": { "type": ["null", "string"], "format": "date-time" },
+          "lastVerifiedAtUtc": { "type": ["null", "string"], "format": "date-time" },
+          "expiresAtUtc": { "type": ["null", "string"], "format": "date-time" },
+          "sourceKind": { "type": ["null", "string"] }
         },
         "additionalProperties": false
       },

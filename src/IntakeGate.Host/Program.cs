@@ -30,11 +30,13 @@ using IntakeGate.Application.AzureDevOps;
 using IntakeGate.Infrastructure.Secrets;
 using IntakeGate.Host.AzureDevOps;
 using IntakeGate.Application.AiManagement;
+using IntakeGate.Application.AiPricing;
 using IntakeGate.Host.AiManagement;
 using IntakeGate.Host.Operations;
 using IntakeGate.Application.Profiles;
 using IntakeGate.Host.Supportability;
 using IntakeGate.Host.Home;
+using IntakeGate.Infrastructure.Ai.Pricing;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
@@ -378,6 +380,20 @@ builder.Services.AddSingleton<IAzureDevOpsSetupRepository>(services =>
     return new SqliteAzureDevOpsSetupRepository(options.Path);
 });
 builder.Services.AddSingleton<IAiConfigurationRepository>(aiConfigurationRepository);
+var pricingFreshnessDays = builder.Configuration.GetValue("AiPricing:FreshnessDays", 7);
+if (pricingFreshnessDays <= 0)
+    throw new ConfigurationValidationException("AiPricing:FreshnessDays must be greater than zero.");
+builder.Services.AddSingleton(new AiModelPricingOptions
+{
+    FreshnessTtl = TimeSpan.FromDays(pricingFreshnessDays)
+});
+builder.Services.AddSingleton<IAiModelPricingRepository>(services =>
+{
+    var options = services.GetRequiredService<IOptions<OperationalDatabaseOptions>>().Value;
+    return new SqliteAiModelPricingRepository(options.Path);
+});
+builder.Services.AddSingleton<IAiModelPricingSource, BundledAiModelPricingCatalog>();
+builder.Services.AddSingleton<AiModelPricingService>();
 builder.Services.AddSingleton<IRuntimeConfigurationGenerationRepository>(runtimeGenerationRepository);
 builder.Services.AddSingleton<IRuntimeConfigurationActivator, RuntimeConfigurationActivator>();
 builder.Services.AddSingleton<IProfileManagementRepository>(services =>

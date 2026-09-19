@@ -5,6 +5,7 @@ import type {
   AiModelCandidate,
   AiModelConfirmation,
   AiModelDiscovery,
+  AiModelPricing,
   AiProvider,
   AiSettings,
   AnalyzeWorkItemRequest,
@@ -197,6 +198,14 @@ export class ApiClient {
 
   public getAiSettings(signal?: AbortSignal): Promise<AiSettings> {
     return this.request('/api/ai/settings', signal ? { signal } : {});
+  }
+
+  public getAiModelPricing(signal?: AbortSignal): Promise<AiModelPricing> {
+    return this.request('/api/ai/pricing', signal ? { signal } : {});
+  }
+
+  public refreshAiModelPricing(): Promise<AiModelPricing> {
+    return this.request('/api/ai/pricing/refresh', { method: 'POST' });
   }
 
   public validateAiModel(provider: AiProvider, model: string): Promise<AiModelCandidate> {

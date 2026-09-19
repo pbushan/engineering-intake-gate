@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type {
   AiProvider,
+  AiModelPricing,
   AiSettings,
   AzureDevOpsSettings,
   CredentialMetadata,
@@ -182,7 +183,7 @@ export const homeSummary: HomeSummary = {
 export const systemHealth: SystemHealth = {
   generatedAtUtc: '2026-09-12T14:30:00Z',
   application: { status: 'healthy', application: 'Engineering Intake Gate', version: '2026.9.3', environment: 'Test' },
-  database: { status: 'healthy', reachable: true, currentSchemaVersion: 14, migrationCurrent: true },
+  database: { status: 'healthy', reachable: true, currentSchemaVersion: 15, migrationCurrent: true },
   setup: { status: 'ready', complete: true, profileConfigured: true, savedQueryConfirmed: true },
   runtime: { status: 'active', activeGenerationId: 7, activationCurrent: true },
   azureDevOps: { status: 'verified', credentialConfigured: true, verificationStatus: 'verified', lastVerifiedAtUtc: '2026-09-12T14:10:00Z', verificationDiagnostic: null, settingsReady: true, provider: null, model: null },
@@ -314,6 +315,24 @@ const aiSettings = (ready = false): AiSettings => ({
 export const verifiedCredential = credential(true, true);
 export const readyAzureDevOpsSettings = adoSettings(true);
 export const readyAiSettings = aiSettings(true);
+export const readyModelPricing: AiModelPricing = {
+  provider: 'openai',
+  model: 'test-model',
+  available: true,
+  stale: false,
+  refreshFailed: false,
+  inputPerMillionTokens: 4,
+  cachedInputPerMillionTokens: 0.4,
+  outputPerMillionTokens: 20,
+  currency: 'USD',
+  source: 'Official test catalog',
+  sourceUri: 'https://example.test/pricing',
+  catalogVersion: 'test-v1',
+  effectiveAtUtc: '2026-09-12T00:00:00Z',
+  lastVerifiedAtUtc: '2026-09-12T12:15:00Z',
+  expiresAtUtc: '2026-09-19T12:15:00Z',
+  sourceKind: 'bundledCatalog',
+};
 
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -332,6 +351,9 @@ export interface MockBackendOptions {
   adoSettings?: AzureDevOpsSettings;
   aiSettings?: AiSettings;
   aiCredentials?: Partial<Record<AiProvider, CredentialMetadata>>;
+  modelPricing?: AiModelPricing;
+  pricingEndpointFails?: boolean;
+  pricingRefreshFails?: boolean;
   adoVerificationFails?: boolean;
   adoSettingsValidationFails?: boolean;
   aiVerificationFails?: boolean;
@@ -379,6 +401,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     adoCredential: options.adoCredential ?? credential(options.setup?.azureDevOpsCredentialConfigured, options.setup?.azureDevOpsCredentialVerified),
     adoSettings: options.adoSettings ?? adoSettings(options.setup?.azureDevOpsSavedQueryConfirmed),
     aiSettings: options.aiSettings ?? aiSettings(options.setup?.aiModelConfigured),
+    modelPricing: structuredClone(options.modelPricing ?? readyModelPricing),
     aiCredentials: {
       openai: options.aiCredentials?.openai ?? credential(options.setup?.aiCredentialConfigured, options.setup?.aiCredentialVerified),
       anthropic: options.aiCredentials?.anthropic ?? credential(false, false),
@@ -602,6 +625,19 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       }
     }
     if (path === '/api/ai/settings') return json(state.aiSettings);
+    if (path === '/api/ai/pricing' && method === 'GET') {
+      if (options.pricingEndpointFails) return json({ error: 'PricingUnavailable', message: 'Pricing lookup failed.' }, 503);
+      return json(state.modelPricing);
+    }
+    if (path === '/api/ai/pricing/refresh' && method === 'POST') {
+      if (options.pricingRefreshFails) {
+        state.modelPricing = { ...state.modelPricing, stale: true, refreshFailed: true };
+      } else {
+        state.modelPricing = { ...state.modelPricing, stale: false, refreshFailed: false,
+          lastVerifiedAtUtc: '2026-09-19T12:00:00Z', expiresAtUtc: '2026-09-26T12:00:00Z' };
+      }
+      return json(state.modelPricing);
+    }
     if (path === '/api/ai/model-candidates/validate' && method === 'POST') {
       const body = JSON.parse(String(init.body)) as { provider: AiProvider; model: string };
       if (options.aiModelValidationFails) return json({ error: 'ValidationFailed', message: 'The model ID needs attention.', fieldErrors: { 'ai.model': ['Enter a valid model ID.'] } }, 400);
@@ -611,6 +647,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (path === '/api/ai/model-candidates/confirm' && method === 'POST') {
       if (options.staleModelCandidate) return json({ error: 'AiModelCandidateStale' }, 409);
       state.aiSettings = { ...aiSettings(true), provider: state.pendingModel?.provider ?? 'openai', model: state.pendingModel?.model ?? 'test-model', profileConfigured: true };
+      state.modelPricing = { ...state.modelPricing, provider: state.aiSettings.provider!, model: state.aiSettings.model! };
       state.pendingModel = null;
       state.setup = { ...state.setup, aiModelConfigured: true }; return json({ profileConfigured: false, restartRequired: false, activationMessage: 'Staged.' });
     }

@@ -32,13 +32,13 @@ This tour uses the real `2026.9.3` application rendered against deterministic, o
 
 ![AI provider and model setup](images/03-setup-ai-model.png)
 
-**Purpose:** select OpenAI or Anthropic, verify credentials, and bind a validated model.
+**Purpose:** select OpenAI or Anthropic, verify credentials, bind a validated model, and review its estimated catalog pricing.
 
-**Key controls:** provider choice, local/environment credential source, Verify, Discover models, model selector, manual model-ID fallback, Validate, and Confirm.
+**Key controls:** provider choice, local/environment credential source, Verify, Discover models, model selector, manual model-ID fallback, Validate, Confirm, and Refresh pricing.
 
-**Typical workflow:** save and verify one provider credential, discover or enter a model, then explicitly confirm the revision-bound candidate.
+**Typical workflow:** save and verify one provider credential, discover or enter a model, explicitly confirm the revision-bound candidate, then review input/cached-input/output prices, source, and last-checked time.
 
-**Safety:** credentials never reach browser persistence or reappear after submission. Provider responses are normalized server-side; discovery outages do not erase an already confirmed model.
+**Safety:** credentials never reach browser persistence or reappear after submission. Provider responses are normalized server-side; discovery outages do not erase an already confirmed model. Pricing is loaded only after confirmation, is explicitly labeled as an estimate, and never blocks setup when unavailable. Failed refresh preserves the last verified value.
 
 ### Profile and intake policy
 

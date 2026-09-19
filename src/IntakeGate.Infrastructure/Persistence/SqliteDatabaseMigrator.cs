@@ -8,7 +8,7 @@ namespace IntakeGate.Infrastructure.Persistence;
 /// </summary>
 public sealed class SqliteDatabaseMigrator
 {
-    public const int CurrentSchemaVersion = 14;
+    public const int CurrentSchemaVersion = 15;
     public const int PrePhase1ASchemaVersion = 5;
 
     private static readonly IReadOnlyDictionary<int, string> Migrations = new Dictionary<int, string>
@@ -325,6 +325,30 @@ public sealed class SqliteDatabaseMigrator
             -- Home aggregates are bounded by the authoritative evaluation UTC time.
             CREATE INDEX ix_evaluation_audits_evaluated
                 ON evaluation_audits(evaluated_at_utc, evaluation_id);
+            """,
+        [15] = """
+            -- Backend-owned model pricing cache. Decimal amounts are invariant strings so
+            -- future cost accounting can retain exact values and historical provenance.
+            -- ManualOverride is reserved for negotiated enterprise pricing and cannot be
+            -- replaced by ordinary catalog refreshes.
+            CREATE TABLE ai_model_pricing_cache (
+                provider TEXT NOT NULL CHECK (provider IN ('openai', 'anthropic')),
+                model_id TEXT NOT NULL,
+                input_per_million_tokens TEXT NOT NULL,
+                cached_input_per_million_tokens TEXT NULL,
+                output_per_million_tokens TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                source TEXT NOT NULL,
+                source_uri TEXT NULL,
+                catalog_version TEXT NOT NULL,
+                effective_at_utc TEXT NULL,
+                verified_at_utc TEXT NOT NULL,
+                expires_at_utc TEXT NULL,
+                source_kind TEXT NOT NULL CHECK (source_kind IN
+                    ('BundledCatalog', 'AuthoritativeCatalog', 'ManualOverride')),
+                updated_at_utc TEXT NOT NULL,
+                PRIMARY KEY (provider, model_id)
+            );
             """
     };
 

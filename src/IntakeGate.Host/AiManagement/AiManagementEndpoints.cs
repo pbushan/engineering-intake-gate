@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using IntakeGate.Application.AiManagement;
+using IntakeGate.Application.AiPricing;
 using IntakeGate.Application.Audit;
 using IntakeGate.Application.Configuration;
 using IntakeGate.Application.Secrets;
@@ -81,6 +82,87 @@ public static class AiManagementEndpoints
             .RequireApiAntiforgery()
             .Produces<ConfirmAiModelResponse>()
             .Produces<ApiErrorResponse>(StatusCodes.Status409Conflict);
+
+        group.MapGet("/pricing", async (
+                IAiConfigurationRepository configurations,
+                AiModelPricingService pricing,
+                ILoggerFactory loggerFactory,
+                CancellationToken cancellationToken) =>
+            PricingResult(await ResolveConfirmedPricingAsync(
+                configurations, pricing, loggerFactory, forceRefresh: false, cancellationToken)))
+            .RequireAuthorization(LocalAuthPolicies.Authenticated)
+            .Produces<AiModelPricingResponse>()
+            .Produces<ApiErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<ApiErrorResponse>(StatusCodes.Status401Unauthorized)
+            .Produces<ApiErrorResponse>(StatusCodes.Status403Forbidden);
+
+        group.MapPost("/pricing/refresh", async (
+                IAiConfigurationRepository configurations,
+                AiModelPricingService pricing,
+                ILoggerFactory loggerFactory,
+                CancellationToken cancellationToken) =>
+            PricingResult(await ResolveConfirmedPricingAsync(
+                configurations, pricing, loggerFactory, forceRefresh: true, cancellationToken)))
+            .RequireAuthorization(LocalAuthPolicies.Admin)
+            .RequireApiAntiforgery()
+            .Produces<AiModelPricingResponse>()
+            .Produces<ApiErrorResponse>(StatusCodes.Status409Conflict);
+    }
+
+    private static async Task<(AiConfigurationSettings? Settings, AiModelPricingLookupResult? Result)>
+        ResolveConfirmedPricingAsync(
+            IAiConfigurationRepository configurations,
+            AiModelPricingService pricing,
+            ILoggerFactory loggerFactory,
+            bool forceRefresh,
+            CancellationToken cancellationToken)
+    {
+        var settings = await configurations.GetAsync(cancellationToken);
+        if (!settings.ModelConfirmed || settings.Provider is null || settings.Model is null)
+            return (null, null);
+        var result = await pricing.GetAsync(
+            settings.Provider, settings.Model, forceRefresh, cancellationToken);
+        if (result.RefreshFailed)
+        {
+            loggerFactory.CreateLogger("AiModelPricing").LogWarning(
+                "AI model pricing refresh was unavailable. Event={EventName} Provider={Provider} Model={Model} Preserved={Preserved}",
+                "AiModelPricingRefreshUnavailable", settings.Provider, settings.Model, result.Available);
+        }
+        return (settings, result);
+    }
+
+    private static IResult PricingResult(
+        (AiConfigurationSettings? Settings, AiModelPricingLookupResult? Result) resolution)
+    {
+        if (resolution is not ({ Provider: { } provider, Model: { } model }, { } result))
+        {
+            return Results.Conflict(new ApiErrorResponse(
+                "AiModelNotConfirmed", "Validate and confirm an AI model before loading pricing."));
+        }
+        var value = result.Pricing;
+        return Results.Ok(new AiModelPricingResponse(
+            provider,
+            model,
+            result.Available,
+            result.Stale,
+            result.RefreshFailed,
+            value?.InputPerMillionTokens,
+            value?.CachedInputPerMillionTokens,
+            value?.OutputPerMillionTokens,
+            value?.Currency,
+            value?.Source,
+            value?.SourceUri,
+            value?.CatalogVersion,
+            value?.EffectiveAtUtc,
+            value?.VerifiedAtUtc,
+            value?.ExpiresAtUtc,
+            value?.SourceKind switch
+            {
+                AiModelPricingSourceKind.BundledCatalog => "bundledCatalog",
+                AiModelPricingSourceKind.AuthoritativeCatalog => "authoritativeCatalog",
+                AiModelPricingSourceKind.ManualOverride => "manualOverride",
+                _ => null
+            }));
     }
 
     private static void MapProvider(RouteGroupBuilder group, string provider)
@@ -281,3 +363,20 @@ public sealed record AiSettingsResponse(
     DateTimeOffset? ModelValidatedAtUtc,
     bool RestartRequired,
     string ActivationMessage);
+public sealed record AiModelPricingResponse(
+    string Provider,
+    string Model,
+    bool Available,
+    bool Stale,
+    bool RefreshFailed,
+    decimal? InputPerMillionTokens,
+    decimal? CachedInputPerMillionTokens,
+    decimal? OutputPerMillionTokens,
+    string? Currency,
+    string? Source,
+    Uri? SourceUri,
+    string? CatalogVersion,
+    DateTimeOffset? EffectiveAtUtc,
+    DateTimeOffset? LastVerifiedAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
+    string? SourceKind);

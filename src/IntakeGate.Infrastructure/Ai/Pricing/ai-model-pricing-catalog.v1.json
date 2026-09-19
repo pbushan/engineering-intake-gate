@@ -1,0 +1,86 @@
+{
+  "version": "2026-09-19.1",
+  "publishedAtUtc": "2026-09-19T00:00:00Z",
+  "entries": [
+    {
+      "provider": "openai",
+      "modelId": "gpt-6-astra",
+      "inputPerMillionTokens": 10.00,
+      "cachedInputPerMillionTokens": 1.00,
+      "outputPerMillionTokens": 50.00,
+      "currency": "USD",
+      "source": "OpenAI API pricing — standard, short-context text tokens",
+      "sourceUri": "https://developers.openai.com/api/docs/pricing"
+    },
+    {
+      "provider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "inputPerMillionTokens": 4.00,
+      "cachedInputPerMillionTokens": 0.40,
+      "outputPerMillionTokens": 20.00,
+      "currency": "USD",
+      "source": "OpenAI API pricing — standard, short-context text tokens",
+      "sourceUri": "https://developers.openai.com/api/docs/pricing"
+    },
+    {
+      "provider": "openai",
+      "modelId": "gpt-5.6-terra",
+      "inputPerMillionTokens": 2.00,
+      "cachedInputPerMillionTokens": 0.20,
+      "outputPerMillionTokens": 12.00,
+      "currency": "USD",
+      "source": "OpenAI API pricing — standard, short-context text tokens",
+      "sourceUri": "https://developers.openai.com/api/docs/pricing"
+    },
+    {
+      "provider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "inputPerMillionTokens": 0.20,
+      "cachedInputPerMillionTokens": 0.02,
+      "outputPerMillionTokens": 1.20,
+      "currency": "USD",
+      "source": "OpenAI API pricing — standard, short-context text tokens",
+      "sourceUri": "https://developers.openai.com/api/docs/pricing"
+    },
+    {
+      "provider": "anthropic",
+      "modelId": "claude-fable-5-1",
+      "inputPerMillionTokens": 10.00,
+      "cachedInputPerMillionTokens": 0.25,
+      "outputPerMillionTokens": 50.00,
+      "currency": "USD",
+      "source": "Anthropic Claude API pricing — base input and cache hits",
+      "sourceUri": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    {
+      "provider": "anthropic",
+      "modelId": "claude-opus-5",
+      "inputPerMillionTokens": 5.00,
+      "cachedInputPerMillionTokens": 0.50,
+      "outputPerMillionTokens": 25.00,
+      "currency": "USD",
+      "source": "Anthropic Claude API pricing — base input and cache hits",
+      "sourceUri": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    {
+      "provider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "inputPerMillionTokens": 2.00,
+      "cachedInputPerMillionTokens": 0.20,
+      "outputPerMillionTokens": 10.00,
+      "currency": "USD",
+      "source": "Anthropic Claude API pricing — base input and cache hits",
+      "sourceUri": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    {
+      "provider": "anthropic",
+      "modelId": "claude-haiku-4-5-20251001",
+      "inputPerMillionTokens": 1.00,
+      "cachedInputPerMillionTokens": 0.10,
+      "outputPerMillionTokens": 5.00,
+      "currency": "USD",
+      "source": "Anthropic Claude API pricing — base input and cache hits",
+      "sourceUri": "https://platform.claude.com/docs/en/about-claude/pricing"
+    }
+  ]
+}
