@@ -428,7 +428,23 @@ public static class ProfileManagementEndpoints
                     request.Processing.AttachmentLimits?.MaximumImageCount ?? 0,
                     request.Processing.AttachmentLimits?.MaximumImageBytes ?? 0,
                     request.Processing.AttachmentLimits?.MaximumCsvRows ?? 0,
-                    request.Processing.AttachmentLimits?.MaximumStructuredTextDepth ?? 0)),
+                    request.Processing.AttachmentLimits?.MaximumStructuredTextDepth ?? 0)
+                {
+                    MaximumSpreadsheetSheets = request.Processing.AttachmentLimits?.MaximumSpreadsheetSheets ?? DeploymentConfigurationDefaults.MaximumSpreadsheetSheets,
+                    MaximumSpreadsheetRowsPerSheet = request.Processing.AttachmentLimits?.MaximumSpreadsheetRowsPerSheet ?? DeploymentConfigurationDefaults.MaximumSpreadsheetRowsPerSheet,
+                    MaximumSpreadsheetColumns = request.Processing.AttachmentLimits?.MaximumSpreadsheetColumns ?? DeploymentConfigurationDefaults.MaximumSpreadsheetColumns,
+                    MaximumSpreadsheetCells = request.Processing.AttachmentLimits?.MaximumSpreadsheetCells ?? DeploymentConfigurationDefaults.MaximumSpreadsheetCells,
+                    MaximumMediaDurationSeconds = request.Processing.AttachmentLimits?.MaximumMediaDurationSeconds ?? DeploymentConfigurationDefaults.MaximumMediaDurationSeconds,
+                    MaximumMediaDimension = request.Processing.AttachmentLimits?.MaximumMediaDimension ?? DeploymentConfigurationDefaults.MaximumMediaDimension,
+                    MaximumDecodedPixels = request.Processing.AttachmentLimits?.MaximumDecodedPixels ?? DeploymentConfigurationDefaults.MaximumDecodedPixels,
+                    MaximumSampledFrames = request.Processing.AttachmentLimits?.MaximumSampledFrames ?? DeploymentConfigurationDefaults.MaximumSampledFrames,
+                    MaximumFrameBytes = request.Processing.AttachmentLimits?.MaximumFrameBytes ?? DeploymentConfigurationDefaults.MaximumFrameBytes,
+                    MaximumSelectedVideoScreenshots = request.Processing.AttachmentLimits?.MaximumSelectedVideoScreenshots ?? DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots,
+                    MaximumRetainedScreenshotBytes = request.Processing.AttachmentLimits?.MaximumRetainedScreenshotBytes ?? DeploymentConfigurationDefaults.MaximumRetainedScreenshotBytes,
+                    MaximumTranscriptCharacters = request.Processing.AttachmentLimits?.MaximumTranscriptCharacters ?? DeploymentConfigurationDefaults.MaximumTranscriptCharacters,
+                    MediaProcessTimeoutSeconds = request.Processing.AttachmentLimits?.MediaProcessTimeoutSeconds ?? DeploymentConfigurationDefaults.MediaProcessTimeoutSeconds,
+                    MaximumConcurrentMediaJobs = request.Processing.AttachmentLimits?.MaximumConcurrentMediaJobs ?? DeploymentConfigurationDefaults.MaximumConcurrentMediaJobs
+                }),
             new AuditConfiguration(request.Audit?.RetentionDays ?? 0)
             {
                 EvidenceRetentionDays = request.Audit?.EvidenceRetentionDays ?? DeploymentConfigurationDefaults.EvidenceRetentionDays,
@@ -519,7 +535,23 @@ public static class ProfileManagementEndpoints
             processing.AttachmentLimits.MaximumImageCount,
             processing.AttachmentLimits.MaximumImageBytes,
             processing.AttachmentLimits.MaximumCsvRows,
-            processing.AttachmentLimits.MaximumStructuredTextDepth));
+            processing.AttachmentLimits.MaximumStructuredTextDepth)
+        {
+            MaximumSpreadsheetSheets = processing.AttachmentLimits.MaximumSpreadsheetSheets,
+            MaximumSpreadsheetRowsPerSheet = processing.AttachmentLimits.MaximumSpreadsheetRowsPerSheet,
+            MaximumSpreadsheetColumns = processing.AttachmentLimits.MaximumSpreadsheetColumns,
+            MaximumSpreadsheetCells = processing.AttachmentLimits.MaximumSpreadsheetCells,
+            MaximumMediaDurationSeconds = processing.AttachmentLimits.MaximumMediaDurationSeconds,
+            MaximumMediaDimension = processing.AttachmentLimits.MaximumMediaDimension,
+            MaximumDecodedPixels = processing.AttachmentLimits.MaximumDecodedPixels,
+            MaximumSampledFrames = processing.AttachmentLimits.MaximumSampledFrames,
+            MaximumFrameBytes = processing.AttachmentLimits.MaximumFrameBytes,
+            MaximumSelectedVideoScreenshots = processing.AttachmentLimits.MaximumSelectedVideoScreenshots,
+            MaximumRetainedScreenshotBytes = processing.AttachmentLimits.MaximumRetainedScreenshotBytes,
+            MaximumTranscriptCharacters = processing.AttachmentLimits.MaximumTranscriptCharacters,
+            MediaProcessTimeoutSeconds = processing.AttachmentLimits.MediaProcessTimeoutSeconds,
+            MaximumConcurrentMediaJobs = processing.AttachmentLimits.MaximumConcurrentMediaJobs
+        });
 
     private static ModelPricingResponse ToPricing(ModelPricing pricing) => new(
         pricing.Provider, pricing.Model, pricing.InputPerMillionTokens,
@@ -691,7 +723,23 @@ public sealed record ContentLimitsRequest(int? MaximumTotalCharacters, int? Maxi
     int? MaximumExtractedTextCharacters);
 public sealed record AttachmentLimitsRequest(int? MaximumCount, long? MaximumBytesPerAttachment,
     long? MaximumAggregateBytes, int? MaximumPdfPages, int? MaximumImageCount,
-    long? MaximumImageBytes, int? MaximumCsvRows, int? MaximumStructuredTextDepth);
+    long? MaximumImageBytes, int? MaximumCsvRows, int? MaximumStructuredTextDepth)
+{
+    public int? MaximumSpreadsheetSheets { get; init; }
+    public int? MaximumSpreadsheetRowsPerSheet { get; init; }
+    public int? MaximumSpreadsheetColumns { get; init; }
+    public int? MaximumSpreadsheetCells { get; init; }
+    public int? MaximumMediaDurationSeconds { get; init; }
+    public int? MaximumMediaDimension { get; init; }
+    public long? MaximumDecodedPixels { get; init; }
+    public int? MaximumSampledFrames { get; init; }
+    public long? MaximumFrameBytes { get; init; }
+    public int? MaximumSelectedVideoScreenshots { get; init; }
+    public long? MaximumRetainedScreenshotBytes { get; init; }
+    public int? MaximumTranscriptCharacters { get; init; }
+    public int? MediaProcessTimeoutSeconds { get; init; }
+    public int? MaximumConcurrentMediaJobs { get; init; }
+}
 public sealed record AuditRequest(
     int? RetentionDays,
     int? EvidenceRetentionDays = null,
@@ -735,7 +783,23 @@ public sealed record ContentLimitsResponse(int MaximumTotalCharacters, int Maxim
     int MaximumExtractedTextCharacters);
 public sealed record AttachmentLimitsResponse(int MaximumCount, long MaximumBytesPerAttachment,
     long MaximumAggregateBytes, int MaximumPdfPages, int MaximumImageCount,
-    long MaximumImageBytes, int MaximumCsvRows, int MaximumStructuredTextDepth);
+    long MaximumImageBytes, int MaximumCsvRows, int MaximumStructuredTextDepth)
+{
+    public int MaximumSpreadsheetSheets { get; init; }
+    public int MaximumSpreadsheetRowsPerSheet { get; init; }
+    public int MaximumSpreadsheetColumns { get; init; }
+    public int MaximumSpreadsheetCells { get; init; }
+    public int MaximumMediaDurationSeconds { get; init; }
+    public int MaximumMediaDimension { get; init; }
+    public long MaximumDecodedPixels { get; init; }
+    public int MaximumSampledFrames { get; init; }
+    public long MaximumFrameBytes { get; init; }
+    public int MaximumSelectedVideoScreenshots { get; init; }
+    public long MaximumRetainedScreenshotBytes { get; init; }
+    public int MaximumTranscriptCharacters { get; init; }
+    public int MediaProcessTimeoutSeconds { get; init; }
+    public int MaximumConcurrentMediaJobs { get; init; }
+}
 public sealed record AuditResponse(
     int RetentionDays,
     int EvidenceRetentionDays,

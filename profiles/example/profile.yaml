@@ -48,6 +48,20 @@ processing:
     maximumImageBytes: 5242880
     maximumCsvRows: 1000
     maximumStructuredTextDepth: 32
+    maximumSpreadsheetSheets: 20
+    maximumSpreadsheetRowsPerSheet: 200
+    maximumSpreadsheetColumns: 50
+    maximumSpreadsheetCells: 5000
+    maximumMediaDurationSeconds: 1800
+    maximumMediaDimension: 4096
+    maximumDecodedPixels: 33554432
+    maximumSampledFrames: 12
+    maximumFrameBytes: 5242880
+    maximumSelectedVideoScreenshots: 6
+    maximumRetainedScreenshotBytes: 3145728
+    maximumTranscriptCharacters: 100000
+    mediaProcessTimeoutSeconds: 120
+    maximumConcurrentMediaJobs: 2
 
 audit:
   retentionDays: 90

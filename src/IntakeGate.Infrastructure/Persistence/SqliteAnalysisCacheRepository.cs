@@ -41,9 +41,13 @@ public sealed class SqliteAnalysisCacheRepository(string databasePath) : IAnalys
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT OR IGNORE INTO attachment_evidence_artifacts
+            INSERT INTO attachment_evidence_artifacts
                 (artifact_id, organization, project, attachment_id, content_sha256, created_at_utc, expires_at_utc, payload_json)
-            VALUES ($id, $organization, $project, $attachmentId, $hash, $created, $expires, $payload);
+            VALUES ($id, $organization, $project, $attachmentId, $hash, $created, $expires, $payload)
+            ON CONFLICT(artifact_id) DO UPDATE SET
+                created_at_utc = excluded.created_at_utc,
+                expires_at_utc = excluded.expires_at_utc,
+                payload_json = excluded.payload_json;
             """;
         command.Parameters.AddWithValue("$id", artifact.ArtifactId);
         command.Parameters.AddWithValue("$organization", artifact.Organization);
@@ -102,6 +106,63 @@ public sealed class SqliteAnalysisCacheRepository(string databasePath) : IAnalys
 
     public async Task<AnalysisContextSnapshot?> GetContextAsync(string snapshotId, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
         await ReadAsync<AnalysisContextSnapshot>("analysis_context_snapshots", "snapshot_id", snapshotId, nowUtc, cancellationToken);
+
+    public async Task SaveScreenshotAsync(SelectedKeyScreenshotArtifact screenshot, CancellationToken cancellationToken = default)
+    {
+        if (screenshot.Content.Length == 0 || screenshot.ExpiresAtUtc != screenshot.Metadata.ExpiresAtUtc)
+            throw new ArgumentException("Screenshot content and expiry are required.", nameof(screenshot));
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO selected_key_screenshot_artifacts
+                (screenshot_id, source_artifact_id, expires_at_utc, storage_reference, payload_json, media_type, content_blob)
+            SELECT $id, $source, $expires, $reference, $payload, $mediaType, $content
+            WHERE EXISTS (
+                SELECT 1 FROM attachment_evidence_artifacts
+                WHERE artifact_id = $source AND organization = $organization AND project = $project)
+            ON CONFLICT(screenshot_id) DO UPDATE SET
+                expires_at_utc = excluded.expires_at_utc,
+                payload_json = excluded.payload_json,
+                media_type = excluded.media_type,
+                content_blob = excluded.content_blob;
+            """;
+        command.Parameters.AddWithValue("$id", screenshot.ScreenshotId);
+        command.Parameters.AddWithValue("$source", screenshot.SourceArtifactId);
+        command.Parameters.AddWithValue("$organization", screenshot.Organization);
+        command.Parameters.AddWithValue("$project", screenshot.Project);
+        command.Parameters.AddWithValue("$expires", Format(screenshot.ExpiresAtUtc));
+        command.Parameters.AddWithValue("$reference", screenshot.Metadata.StorageReference);
+        command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(screenshot.Metadata, JsonOptions));
+        command.Parameters.AddWithValue("$mediaType", screenshot.MediaType);
+        command.Parameters.AddWithValue("$content", screenshot.Content);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new InvalidOperationException("The screenshot source artifact was unavailable in the requested scope.");
+    }
+
+    public async Task<SelectedKeyScreenshotArtifact?> GetScreenshotAsync(
+        string screenshotId, string organization, string project, DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT s.source_artifact_id, s.payload_json, s.media_type, s.content_blob, s.expires_at_utc
+            FROM selected_key_screenshot_artifacts s
+            INNER JOIN attachment_evidence_artifacts a ON a.artifact_id = s.source_artifact_id
+            WHERE s.screenshot_id = $id AND a.organization = $organization AND a.project = $project
+              AND s.expires_at_utc > $now AND a.expires_at_utc > $now;
+            """;
+        command.Parameters.AddWithValue("$id", screenshotId);
+        command.Parameters.AddWithValue("$organization", organization);
+        command.Parameters.AddWithValue("$project", project);
+        command.Parameters.AddWithValue("$now", Format(nowUtc));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken) || reader.IsDBNull(2) || reader.IsDBNull(3)) return null;
+        var metadata = Deserialize<SelectedKeyScreenshot>(reader.GetString(1));
+        if (metadata is null) return null;
+        return new SelectedKeyScreenshotArtifact(screenshotId, reader.GetString(0), organization, project,
+            metadata, reader.GetString(2), (byte[])reader[3], DateTimeOffset.Parse(reader.GetString(4), CultureInfo.InvariantCulture));
+    }
 
     public async Task<EvidenceCleanupResult> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default)
     {

@@ -36,7 +36,7 @@ public sealed class AzureDevOpsWorkItemSourceTests
     [Fact]
     public async Task CNT_001_MapsFieldsRevisionCommentsRelationsAndAttachmentSourceGenerically()
     {
-        var attachmentUrl = "https://dev.azure.com/generic-org/GenericProject/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        var attachmentUrl = "https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
         var handler = new ScriptedHandler(
             Json(HttpStatusCode.OK, $$$"""
                 {
@@ -104,7 +104,7 @@ public sealed class AzureDevOpsWorkItemSourceTests
     [Fact]
     public async Task E4_AttachmentDownloadFailureIsUnavailableAndDoesNotCrashEvidencePipeline()
     {
-        var attachmentUrl = "https://dev.azure.com/generic-org/GenericProject/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        var attachmentUrl = "https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
         var handler = new ScriptedHandler(
             Json(HttpStatusCode.OK, $$$"""{"id":42,"rev":8,"fields":{"System.WorkItemType":"Generic","System.Title":"Title"},"relations":[{"rel":"AttachedFile","url":"{{{attachmentUrl}}}","attributes":{"name":"failed.txt","resourceSize":20}}]}"""),
             Json(HttpStatusCode.OK, """{"comments":[]}"""),
@@ -130,7 +130,7 @@ public sealed class AzureDevOpsWorkItemSourceTests
     [Fact]
     public async Task CNT_001_ImageAttachmentDownloadBecomesProviderNeutralVisualEvidence()
     {
-        const string attachmentUrl = "https://dev.azure.com/generic-org/GenericProject/_apis/wit/attachments/image-1";
+        const string attachmentUrl = "https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
         var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
         var imageResponse = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(png) };
         imageResponse.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
@@ -154,6 +154,49 @@ public sealed class AzureDevOpsWorkItemSourceTests
         var visual = Assert.Single(evidence.VisualEvidence);
         Assert.Equal("image/png", visual.MediaType);
         Assert.Equal(png, visual.Content.ToArray());
+    }
+
+    [Theory]
+    [InlineData("https://dev.azure.com.evil.example/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")]
+    [InlineData("https://user@dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")]
+    [InlineData("https://dev.azure.com/other-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")]
+    [InlineData("https://dev.azure.com/generic-org/_apis/wit/attachments/not-a-guid")]
+    [InlineData("https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/extra")]
+    [InlineData("https://dev.azure.com/generic-org/%2e%2e/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")]
+    [InlineData("https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee?redirect=https%3A%2F%2Fevil.example")]
+    [InlineData("https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee#fragment")]
+    public async Task SEC_AttachmentDownloadRejectsUnsafeReferences(string attachmentUrl)
+    {
+        var handler = new ScriptedHandler(
+            Json(HttpStatusCode.OK, $$$"""{"id":42,"rev":8,"fields":{"System.WorkItemType":"Generic","System.Title":"Title"},"relations":[{"rel":"AttachedFile","url":"{{{attachmentUrl}}}","attributes":{"name":"unsafe.txt","resourceSize":20}}]}"""),
+            Json(HttpStatusCode.OK, """{"comments":[]}"""));
+        var read = await Source(handler, retries: 0).GetWorkItemAsync(42);
+
+        var exception = await Assert.ThrowsAsync<AttachmentContentUnavailableException>(async () =>
+        {
+            await using var _ = await Assert.Single(read.WorkItem!.Attachments).Content!.OpenReadAsync();
+        });
+
+        Assert.Equal("AzureDevOpsUnsafeAttachmentReference", exception.SafeCategory);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task CNT_001_ProjectScopedAttachmentUrlRemainsSupportedAndApiVersionIsForced()
+    {
+        const string attachmentUrl = "https://dev.azure.com/generic-org/GenericProject/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee?download=true&api-version=1.0";
+        var handler = new ScriptedHandler(
+            Json(HttpStatusCode.OK, $$$"""{"id":42,"rev":8,"fields":{"System.WorkItemType":"Generic","System.Title":"Title"},"relations":[{"rel":"AttachedFile","url":"{{{attachmentUrl}}}","attributes":{"name":"safe.txt","resourceSize":4}}]}"""),
+            Json(HttpStatusCode.OK, """{"comments":[]}"""),
+            Bytes(HttpStatusCode.OK, "text/plain", "safe"));
+        var read = await Source(handler, retries: 0).GetWorkItemAsync(42);
+
+        await using var stream = await Assert.Single(read.WorkItem!.Attachments).Content!.OpenReadAsync();
+
+        Assert.Equal(4, stream.Length);
+        var request = handler.Requests[2].Path;
+        Assert.Contains("api-version=7.1", request, StringComparison.Ordinal);
+        Assert.DoesNotContain("api-version=1.0", request, StringComparison.Ordinal);
     }
 
     [Theory]

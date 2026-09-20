@@ -1,6 +1,11 @@
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using IntakeGate.Application.Configuration;
+using IntakeGate.Application.Audit;
 using IntakeGate.Application.Evidence;
 using IntakeGate.Application.Evaluation;
 using IntakeGate.Infrastructure.Evidence;
@@ -111,6 +116,148 @@ public sealed class AttachmentProcessingTests
         Assert.True(attachment.RequiresVisualInspection);
         Assert.Contains("visual inspection", attachment.ExtractedEvidence, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(Convert.ToBase64String(ValidPng), JsonSerializer.Serialize(evidence), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PH2_XlsxProducesBoundedCachedValuesAndLiteralFormulasWithoutCalculation()
+    {
+        var service = new AttachmentProcessingService([new SpreadsheetAttachmentProcessor()]);
+        var result = Assert.Single(await service.ProcessAsync(
+            [Attachment("xlsx", "facts.xlsx", "application/octet-stream", CreateXlsx())],
+            Limits() with { MaximumSpreadsheetRowsPerSheet = 2, MaximumSpreadsheetColumns = 3 }, 10_000));
+
+        Assert.Equal(AttachmentInspectionMode.Spreadsheet, result.InspectionMode);
+        Assert.Equal(AttachmentProcessingStatus.Partial, result.ProcessingStatus);
+        Assert.Contains("[Sheet: Evidence]", result.ExtractedEvidence, StringComparison.Ordinal);
+        Assert.Contains("FACT-IN-CELL", result.ExtractedEvidence, StringComparison.Ordinal);
+        Assert.Contains("=1+1 [cached: 2]", result.ExtractedEvidence, StringComparison.Ordinal);
+        Assert.DoesNotContain("ROW-3-OMITTED", result.ExtractedEvidence, StringComparison.Ordinal);
+        Assert.Contains("SpreadsheetSamplingLimitReached", result.Warnings);
+    }
+
+    [Fact]
+    public async Task PH2_MediaEvidenceIsCompositeReusableAndForceFreshWhileScreenshotsRemainBounded()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"media-cache-{Guid.NewGuid():N}.db");
+        try
+        {
+            await new SqliteDatabaseMigrator(path).MigrateAsync();
+            var cache = new SqliteAnalysisCacheRepository(path);
+            var tool = new FakeMediaTool();
+            var provider = new FakeAttachmentEvidenceProvider();
+            var processor = new MediaAttachmentProcessor(tool, provider, new SecretRedactor());
+            var service = new AttachmentProcessingService([processor], cache, new SecretRedactor());
+            var now = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+            var options = new EvidencePreparationOptions("https://org", "project", false, now, now.AddDays(30));
+            var attachment = Attachment("video", "support-recording.mp4", "video/mp4", new byte[] { 0, 1, 2, 3 });
+
+            var first = Assert.Single(await service.ProcessAsync([attachment], Limits(), 20_000, options));
+            var reused = Assert.Single(await service.ProcessAsync([attachment], Limits(), 20_000, options));
+            var fresh = Assert.Single(await service.ProcessAsync([attachment], Limits(), 20_000,
+                options with { ForceFresh = true }));
+
+            Assert.Equal(AttachmentInspectionMode.VideoComposite, first.InspectionMode);
+            Assert.Contains("FACT A SPOKEN ONLY", first.ExtractedEvidence, StringComparison.Ordinal);
+            Assert.Contains("FACT B VISIBLE ONLY", first.ExtractedEvidence, StringComparison.Ordinal);
+            Assert.NotEmpty(first.SelectedKeyScreenshots);
+            Assert.True(first.SelectedKeyScreenshots.Count <= 6);
+            Assert.True(reused.CacheReused);
+            Assert.Equal(first.SelectedKeyScreenshots, reused.SelectedKeyScreenshots);
+            Assert.False(fresh.CacheReused);
+            Assert.Equal(2, provider.TranscriptionCalls);
+            Assert.Equal(4, provider.VisionCalls);
+            var screenshot = await cache.GetScreenshotAsync(first.SelectedKeyScreenshots[0].StorageReference,
+                "https://org", "project", now);
+            Assert.NotNull(screenshot);
+            Assert.NotEmpty(screenshot.Content);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task PH2_ScreenshotCacheFailurePreservesTextualVideoEvidence()
+    {
+        var cache = new ScreenshotFailingCache();
+        var provider = new FakeAttachmentEvidenceProvider();
+        var service = new AttachmentProcessingService(
+            [new MediaAttachmentProcessor(new FakeMediaTool(), provider, new SecretRedactor())], cache, new SecretRedactor());
+        var now = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+        var result = Assert.Single(await service.ProcessAsync(
+            [Attachment("video", "support.mp4", "video/mp4", new byte[] { 0, 1, 2, 3 })],
+            Limits(), 20_000, new EvidencePreparationOptions("https://org", "project", false, now, now.AddDays(30))));
+
+        Assert.Contains("FACT B VISIBLE ONLY", result.ExtractedEvidence, StringComparison.Ordinal);
+        Assert.Contains("ScreenshotPersistenceFailed", result.Warnings);
+        Assert.Empty(result.SelectedKeyScreenshots);
+        Assert.NotEqual(AttachmentProcessingStatus.Error, result.ProcessingStatus);
+    }
+
+    [Fact]
+    public async Task PH2_MediaSubartifactInvalidationDoesNotInvalidateIndependentEvidence()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"media-version-cache-{Guid.NewGuid():N}.db");
+        try
+        {
+            await new SqliteDatabaseMigrator(path).MigrateAsync();
+            var cache = new SqliteAnalysisCacheRepository(path);
+            var now = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+            var options = new EvidencePreparationOptions("https://org", "project", false, now, now.AddDays(30));
+            var attachment = Attachment("video", "support.mp4", "video/mp4", [0, 1, 2, 3]);
+            var originalProvider = new FakeAttachmentEvidenceProvider("t1", "v1");
+            await new AttachmentProcessingService(
+                [new MediaAttachmentProcessor(new FakeMediaTool(), originalProvider, new SecretRedactor())], cache, new SecretRedactor())
+                .ProcessAsync([attachment], Limits(), 20_000, options);
+
+            var transcriptChanged = new FakeAttachmentEvidenceProvider("t2", "v1");
+            var transcriptResult = Assert.Single(await new AttachmentProcessingService(
+                [new MediaAttachmentProcessor(new FakeMediaTool(), transcriptChanged, new SecretRedactor())], cache, new SecretRedactor())
+                .ProcessAsync([attachment], Limits(), 20_000, options));
+
+            Assert.False(transcriptResult.CacheReused);
+            Assert.Equal(1, transcriptChanged.TranscriptionCalls);
+            Assert.Equal(0, transcriptChanged.VisionCalls);
+            Assert.Contains("FACT B VISIBLE ONLY", transcriptResult.ExtractedEvidence, StringComparison.Ordinal);
+            Assert.NotEmpty(transcriptResult.SelectedKeyScreenshots);
+
+            var visionChanged = new FakeAttachmentEvidenceProvider("t1", "v2");
+            var visionResult = Assert.Single(await new AttachmentProcessingService(
+                [new MediaAttachmentProcessor(new FakeMediaTool(), visionChanged, new SecretRedactor())], cache, new SecretRedactor())
+                .ProcessAsync([attachment], Limits(), 20_000, options));
+
+            Assert.False(visionResult.CacheReused);
+            Assert.Equal(0, visionChanged.TranscriptionCalls);
+            Assert.Equal(2, visionChanged.VisionCalls);
+            Assert.Contains("FACT A SPOKEN ONLY", visionResult.ExtractedEvidence, StringComparison.Ordinal);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(false, true, false)]
+    public async Task PH2_VideoPartialStagesPreserveEverySuccessfulSubresult(
+        bool transcriptSucceeds, bool visionSucceeds, bool hasAudio)
+    {
+        var provider = new PartialAttachmentEvidenceProvider(transcriptSucceeds, visionSucceeds);
+        var processor = new MediaAttachmentProcessor(new FakeMediaTool(hasAudio), provider, new SecretRedactor());
+
+        var result = Assert.Single(await new AttachmentProcessingService([processor]).ProcessAsync(
+            [Attachment("video", "partial.mp4", "video/mp4", [0, 1, 2, 3])], Limits(), 20_000));
+
+        Assert.NotEqual(AttachmentProcessingStatus.Error, result.ProcessingStatus);
+        if (transcriptSucceeds && hasAudio) Assert.Contains("TRANSCRIPT SUCCEEDED", result.ExtractedEvidence, StringComparison.Ordinal);
+        if (visionSucceeds) Assert.Contains("VISION SUCCEEDED", result.ExtractedEvidence, StringComparison.Ordinal);
+        if (!hasAudio) Assert.Contains("VideoHasNoAudioStream", result.Warnings);
+        Assert.NotNull(result.Video);
     }
 
     [Fact]
@@ -377,6 +524,27 @@ public sealed class AttachmentProcessingTests
         return output.ToArray();
     }
 
+    private static byte[] CreateXlsx()
+    {
+        using var output = new MemoryStream();
+        using (var document = SpreadsheetDocument.Create(output, SpreadsheetDocumentType.Workbook, true))
+        {
+            var workbookPart = document.AddWorkbookPart();
+            workbookPart.Workbook = new Workbook();
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            worksheetPart.Worksheet = new Worksheet(new SheetData(
+                new Row(new Cell { CellReference = "A1", DataType = CellValues.String, CellValue = new CellValue("Header") },
+                    new Cell { CellReference = "B1", DataType = CellValues.String, CellValue = new CellValue("Value") }),
+                new Row(new Cell { CellReference = "A2", DataType = CellValues.String, CellValue = new CellValue("FACT-IN-CELL") },
+                    new Cell { CellReference = "B2", CellFormula = new CellFormula("1+1"), CellValue = new CellValue("2") }),
+                new Row(new Cell { CellReference = "A3", DataType = CellValues.String, CellValue = new CellValue("ROW-3-OMITTED") })));
+            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
+            sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Evidence" });
+            workbookPart.Workbook.Save();
+        }
+        return output.ToArray();
+    }
+
     private sealed class ThrowingContent : IAttachmentContentSource
     {
         public long? Length => 20;
@@ -418,6 +586,94 @@ public sealed class AttachmentProcessingTests
             Task.FromResult<AnalysisContextSnapshot?>(null);
         public Task<EvidenceCleanupResult> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
             Task.FromResult(new EvidenceCleanupResult(0, 0, 0, 0));
+    }
+
+    private sealed class ScreenshotFailingCache : IAnalysisCacheRepository
+    {
+        private readonly Dictionary<string, AttachmentEvidenceArtifact> artifacts = new(StringComparer.Ordinal);
+        public Task<AttachmentEvidenceArtifact?> GetAttachmentAsync(string artifactId, string organization, string project,
+            DateTimeOffset nowUtc, CancellationToken cancellationToken = default) =>
+            Task.FromResult(artifacts.TryGetValue(artifactId, out var value) ? value : null);
+        public Task SaveAttachmentAsync(AttachmentEvidenceArtifact artifact, CancellationToken cancellationToken = default)
+        { artifacts[artifact.ArtifactId] = artifact; return Task.CompletedTask; }
+        public Task SaveScreenshotAsync(SelectedKeyScreenshotArtifact screenshot, CancellationToken cancellationToken = default) =>
+            throw new IOException("synthetic screenshot write failure");
+        public Task<ReusableEvaluation?> GetEvaluationAsync(string equivalenceKey, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult<ReusableEvaluation?>(null);
+        public Task SaveEvaluationAsync(ReusableEvaluation evaluation, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveContextAsync(AnalysisContextSnapshot context, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<AnalysisContextSnapshot?> GetContextAsync(string snapshotId, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult<AnalysisContextSnapshot?>(null);
+        public Task<EvidenceCleanupResult> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(new EvidenceCleanupResult(0, 0, 0, 0));
+    }
+
+    private sealed class FakeMediaTool(bool hasAudio = true) : IMediaTool
+    {
+        public string Version => "fake-media-v1";
+        public Task<MediaProbeResult> ProbeAsync(string inputPath, AttachmentLimits limits, CancellationToken cancellationToken) =>
+            Task.FromResult(new MediaProbeResult(true, 30, 1280, 720, hasAudio, null, []));
+        public async Task<(EvidenceSubstageStatus Status, string? AudioPath, IReadOnlyList<string> Warnings)> ExtractAudioAsync(
+            string inputPath, string workspace, AttachmentLimits limits, CancellationToken cancellationToken)
+        {
+            var path = Path.Combine(workspace, "audio.wav");
+            await File.WriteAllBytesAsync(path, [1, 2, 3], cancellationToken);
+            return (EvidenceSubstageStatus.Completed, path, []);
+        }
+        public async Task<FrameExtractionResult> ExtractFramesAsync(string inputPath, string workspace,
+            MediaProbeResult probe, AttachmentLimits limits, CancellationToken cancellationToken)
+        {
+            var frames = new List<ExtractedMediaFrame>();
+            foreach (var timestamp in new[] { 5d, 12.7d })
+            {
+                var path = Path.Combine(workspace, $"frame-{timestamp.ToString(CultureInfo.InvariantCulture)}.jpg");
+                await File.WriteAllBytesAsync(path, ValidPng.Concat([(byte)timestamp]).ToArray(), cancellationToken);
+                frames.Add(new(timestamp, path, 1280, 720, timestamp > 10));
+            }
+            return new(EvidenceSubstageStatus.Completed, frames, 2, []);
+        }
+    }
+
+    private sealed class FakeAttachmentEvidenceProvider(string transcriptionVersion = "1", string visionVersion = "1") : IAttachmentEvidenceAiProvider
+    {
+        public int TranscriptionCalls { get; private set; }
+        public int VisionCalls { get; private set; }
+        public string ProviderIdentity => "fake";
+        public string TranscriptionModel => "fake-transcribe";
+        public string TranscriptionVersion => transcriptionVersion;
+        public string VisionModel => "fake-vision";
+        public string VisionVersion => visionVersion;
+        public Task<AudioTranscriptionResult> TranscribeAsync(AudioTranscriptionRequest request, CancellationToken cancellationToken)
+        {
+            TranscriptionCalls++;
+            return Task.FromResult(new AudioTranscriptionResult(EvidenceSubstageStatus.Completed,
+                [new TranscriptSegment(5, 8.9, "FACT A SPOKEN ONLY", ProviderIdentity, TranscriptionModel, TranscriptionVersion, [])], [],
+                new AiProviderInteractionUsage(1, ProviderIdentity, TranscriptionModel, ProviderIdentity,
+                    TranscriptionModel, $"transcript-{TranscriptionCalls}", null)));
+        }
+        public Task<FrameVisionResult> ObserveFrameAsync(FrameVisionRequest request, CancellationToken cancellationToken)
+        {
+            VisionCalls++;
+            var observation = request.TimestampSeconds > 10 ? "FACT B VISIBLE ONLY: error E-42" : "Checkout navigation visible";
+            return Task.FromResult(new FrameVisionResult(EvidenceSubstageStatus.Completed, observation, [],
+                new AiProviderInteractionUsage(1, ProviderIdentity, VisionModel, ProviderIdentity,
+                    VisionModel, $"vision-{VisionCalls}", new TokenUsage(10, 5, 15))));
+        }
+    }
+
+    private sealed class PartialAttachmentEvidenceProvider(bool transcriptSucceeds, bool visionSucceeds) : IAttachmentEvidenceAiProvider
+    {
+        public string ProviderIdentity => "fake";
+        public string TranscriptionModel => "fake-transcribe";
+        public string TranscriptionVersion => "partial-1";
+        public string VisionModel => "fake-vision";
+        public string VisionVersion => "partial-1";
+        public Task<AudioTranscriptionResult> TranscribeAsync(AudioTranscriptionRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult(transcriptSucceeds
+                ? new AudioTranscriptionResult(EvidenceSubstageStatus.Completed,
+                    [new TranscriptSegment(1, 2, "TRANSCRIPT SUCCEEDED", ProviderIdentity, TranscriptionModel, TranscriptionVersion, [])], [])
+                : new AudioTranscriptionResult(EvidenceSubstageStatus.Failed, [], ["SyntheticTranscriptionFailure"]));
+        public Task<FrameVisionResult> ObserveFrameAsync(FrameVisionRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult(visionSucceeds
+                ? new FrameVisionResult(EvidenceSubstageStatus.Completed, "VISION SUCCEEDED", [])
+                : new FrameVisionResult(EvidenceSubstageStatus.Failed, null, ["SyntheticVisionFailure"]));
     }
 
     private sealed class NoOpLog : IEvidenceProcessingLog

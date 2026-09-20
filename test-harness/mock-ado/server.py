@@ -18,10 +18,14 @@ PERMANENT_QUERY = "44444444-4444-4444-4444-444444444444"
 
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
 PDF = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 0/Kids[]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n"
+TEXT_ATTACHMENT = "10700000-0000-4000-8000-000000000001"
+IMAGE_ATTACHMENT = "10800000-0000-4000-8000-000000000001"
+PDF_ATTACHMENT = "10900000-0000-4000-8000-000000000001"
+FAILED_ATTACHMENT = "11000000-0000-4000-8000-000000000001"
 ATTACHMENTS = {
-    "text-107": (b"Text attachment evidence password=SYNTH_MOCK_ATTACHMENT_SECRET_807", "text/plain"),
-    "image-108": (PNG, "image/png"),
-    "pdf-109": (PDF, "application/pdf"),
+    TEXT_ATTACHMENT: (b"Text attachment evidence password=SYNTH_MOCK_ATTACHMENT_SECRET_807", "text/plain"),
+    IMAGE_ATTACHMENT: (PNG, "image/png"),
+    PDF_ATTACHMENT: (PDF, "application/pdf"),
 }
 
 
@@ -62,10 +66,10 @@ def state(item_id):
             "attributes": {"name": "Related"},
         }]
         if item_id in (107, 108, 109, 110):
-            attachment_id = {107: "text-107", 108: "image-108", 109: "pdf-109", 110: "failed-110"}[item_id]
+            attachment_id = {107: TEXT_ATTACHMENT, 108: IMAGE_ATTACHMENT, 109: PDF_ATTACHMENT, 110: FAILED_ATTACHMENT}[item_id]
             name = {107: "evidence.txt", 108: "screen.png", 109: "document.pdf", 110: "unavailable.txt"}[item_id]
             size = len(ATTACHMENTS.get(attachment_id, (b"unavailable", ""))[0])
-            relations.append({"rel": "AttachedFile", "url": f"http://mock-ado:8081/generic-org/GenericProject/_apis/wit/attachments/{attachment_id}", "attributes": {"name": name, "resourceSize": size}})
+            relations.append({"rel": "AttachedFile", "url": f"http://mock-ado:8081/generic-org/_apis/wit/attachments/{attachment_id}", "attributes": {"name": name, "resourceSize": size}})
         values = fields(item_id, risk, custom)
         if item_id == 102:
             values["System.Description"] = ""
@@ -89,12 +93,12 @@ def legacy_item(item_id):
         "attributes": {"name": "Related"},
     }]
     if item_id in (107, 108, 109, 110):
-        attachment_id = {107: "text-107", 108: "image-108", 109: "pdf-109", 110: "failed-110"}[item_id]
+        attachment_id = {107: TEXT_ATTACHMENT, 108: IMAGE_ATTACHMENT, 109: PDF_ATTACHMENT, 110: FAILED_ATTACHMENT}[item_id]
         name = {107: "evidence.txt", 108: "screen.png", 109: "document.pdf", 110: "unavailable.txt"}[item_id]
         size = len(ATTACHMENTS.get(attachment_id, (b"unavailable", ""))[0])
         relations.append({
             "rel": "AttachedFile",
-            "url": f"http://mock-ado:8081/generic-org/GenericProject/_apis/wit/attachments/{attachment_id}",
+            "url": f"http://mock-ado:8081/generic-org/_apis/wit/attachments/{attachment_id}",
             "attributes": {"name": name, "resourceSize": size},
         })
     values = fields(item_id, risk, custom)
@@ -186,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if "/_apis/wit/attachments/" in lower:
             attachment_id = parsed.path.rsplit("/", 1)[-1]
-            if attachment_id == "failed-110":
+            if attachment_id == FAILED_ATTACHMENT:
                 return self._json(503, {"message": "synthetic attachment failure"})
             if attachment_id not in ATTACHMENTS:
                 return self._json(404, {"message": "missing attachment"})

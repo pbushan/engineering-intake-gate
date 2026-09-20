@@ -209,6 +209,21 @@ public sealed class IntakeRunService
                 ProviderInteractions = [],
                 ProviderRequestIds = []
             };
+        var attachmentInteractions = evidence.Attachments.SelectMany(item => item.AiInteractions).ToArray();
+        if (attachmentInteractions.Length > 0)
+        {
+            var interactions = attachmentInteractions.Concat(evaluation.ProviderInteractions).ToArray();
+            var usages = interactions.Select(item => item.TokenUsage).OfType<TokenUsage>().ToArray();
+            evaluation = evaluation with
+            {
+                ProviderInteractions = interactions,
+                TokenUsage = usages.Length == 0 ? evaluation.TokenUsage : new TokenUsage(
+                    usages.Sum(item => item.InputTokens), usages.Sum(item => item.OutputTokens),
+                    usages.Sum(item => item.TotalTokens)),
+                ProviderRequestIds = interactions.Select(item => item.ProviderRequestId)
+                    .Where(value => !string.IsNullOrWhiteSpace(value)).Cast<string>().Distinct(StringComparer.Ordinal).ToArray()
+            };
+        }
         var decision = decisionHandler.Decide(
             evaluation,
             workItem.Tags,

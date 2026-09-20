@@ -67,6 +67,12 @@ public sealed record EvaluationAttachmentMetadata(
     public string? ProcessorVersion { get; init; }
     public bool CacheReused { get; init; }
     public IReadOnlyList<string> Warnings { get; init; } = [];
+    public PdfEvidenceMetadata? Pdf { get; init; }
+    public AudioEvidenceMetadata? Audio { get; init; }
+    public VideoEvidenceMetadata? Video { get; init; }
+    public IReadOnlyList<SelectedKeyScreenshot> SelectedKeyScreenshots { get; init; } = [];
+    [JsonIgnore]
+    public IReadOnlyList<IntakeGate.Application.Evaluation.AiProviderInteractionUsage> AiInteractions { get; init; } = [];
 }
 
 public sealed class VisualEvidence

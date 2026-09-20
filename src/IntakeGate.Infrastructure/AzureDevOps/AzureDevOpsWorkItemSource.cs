@@ -312,7 +312,7 @@ public sealed class AzureDevOpsWorkItemSource : IWorkItemSource
     {
         if (declaredSize > maximumAttachmentBytes)
             throw new AttachmentContentUnavailableException("AttachmentDeclaredSizeLimitExceeded");
-        if (!TryGetSafeAttachmentPath(providerUrl, out var path))
+        if (!TryGetSafeAttachmentUri(providerUrl, out var attachmentUri))
             throw new AttachmentContentUnavailableException("AzureDevOpsUnsafeAttachmentReference");
 
         for (var attempt = 1; attempt <= maximumRetries + 1; attempt++)
@@ -321,7 +321,7 @@ public sealed class AzureDevOpsWorkItemSource : IWorkItemSource
             if (string.IsNullOrWhiteSpace(pat)) throw new AttachmentContentUnavailableException("AzureDevOpsCredentialUnavailable");
             try
             {
-                using var request = CreateGetRequest(path, pat);
+                using var request = CreateGetRequest(attachmentUri.AbsoluteUri, pat);
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(requestTimeout);
                 var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
@@ -374,20 +374,54 @@ public sealed class AzureDevOpsWorkItemSource : IWorkItemSource
     private HttpRequestMessage CreateGetRequest(string relativePath, string pat)
         => AzureDevOpsHttp.CreateGet(projectApiBase, relativePath, pat);
 
-    private bool TryGetSafeAttachmentPath(string providerUrl, out string relativePath)
+    private bool TryGetSafeAttachmentUri(string providerUrl, out Uri attachmentUri)
     {
-        relativePath = string.Empty;
-        if (!Uri.TryCreate(providerUrl, UriKind.Absolute, out var uri)) return false;
+        attachmentUri = null!;
+        if (providerUrl.Length > 2_048 || !Uri.TryCreate(providerUrl, UriKind.Absolute, out var uri) ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment)) return false;
         if (!string.Equals(uri.Scheme, projectApiBase.Scheme, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(uri.Host, projectApiBase.Host, StringComparison.OrdinalIgnoreCase) ||
-            uri.Port != projectApiBase.Port ||
-            !uri.AbsolutePath.Contains("/_apis/wit/attachments/", StringComparison.OrdinalIgnoreCase)) return false;
+            uri.Port != projectApiBase.Port) return false;
 
-        var basePath = projectApiBase.AbsolutePath;
-        if (!uri.AbsolutePath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase)) return false;
-        relativePath = uri.PathAndQuery[basePath.Length..].TrimStart('/');
-        if (!relativePath.Contains("api-version=", StringComparison.OrdinalIgnoreCase))
-            relativePath += (relativePath.Contains('?') ? "&" : "?") + "api-version=7.1";
+        var escapedPath = uri.GetComponents(UriComponents.Path, UriFormat.UriEscaped);
+        if (escapedPath.Contains("%2e", StringComparison.OrdinalIgnoreCase) ||
+            escapedPath.Contains("%2f", StringComparison.OrdinalIgnoreCase) ||
+            escapedPath.Contains("%5c", StringComparison.OrdinalIgnoreCase) ||
+            escapedPath.Contains('\\')) return false;
+
+        var organizationPath = configuration.OrganizationUrl.AbsolutePath.Trim('/');
+        var projectPath = Uri.EscapeDataString(configuration.Project);
+        var allowedPrefixes = new[]
+        {
+            $"{organizationPath}/_apis/wit/attachments/",
+            $"{organizationPath}/{projectPath}/_apis/wit/attachments/"
+        };
+        var prefix = allowedPrefixes.FirstOrDefault(candidate =>
+            escapedPath.StartsWith(candidate, StringComparison.OrdinalIgnoreCase));
+        if (prefix is null) return false;
+        var identifier = escapedPath[prefix.Length..];
+        if (identifier.Contains('/') || !Guid.TryParseExact(identifier, "D", out _)) return false;
+
+        var permitted = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(uri.Query))
+        {
+            foreach (var component in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = component.Split('=', 2);
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = parts.Length == 2 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+                if (key.Length > 32 || value.Length > 512) return false;
+                if (!key.Equals("api-version", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("fileName", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("download", StringComparison.OrdinalIgnoreCase) ||
+                    !permitted.TryAdd(key, value) || value.Contains('\r') || value.Contains('\n')) return false;
+            }
+        }
+        permitted["api-version"] = "7.1";
+        var builder = new UriBuilder(uri) { Fragment = string.Empty };
+        builder.Query = string.Join('&', permitted.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"));
+        attachmentUri = builder.Uri;
         return true;
     }
 

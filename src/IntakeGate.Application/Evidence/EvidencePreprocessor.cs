@@ -230,7 +230,12 @@ public sealed class EvidencePreprocessor : IEvidencePreprocessor
                 ProcessorIdentity = result.ProcessorIdentity,
                 ProcessorVersion = result.ProcessorVersion,
                 CacheReused = result.CacheReused,
-                Warnings = result.Warnings
+                Warnings = result.Warnings,
+                Pdf = result.Pdf,
+                Audio = result.Audio,
+                Video = result.Video,
+                SelectedKeyScreenshots = result.SelectedKeyScreenshots,
+                AiInteractions = result.AiInteractions
             });
 
             if (result.VisualContent is not null)

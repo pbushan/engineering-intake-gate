@@ -8,7 +8,7 @@ namespace IntakeGate.Infrastructure.Persistence;
 /// </summary>
 public sealed class SqliteDatabaseMigrator
 {
-    public const int CurrentSchemaVersion = 16;
+    public const int CurrentSchemaVersion = 17;
     public const int PrePhase1ASchemaVersion = 5;
 
     private static readonly IReadOnlyDictionary<int, string> Migrations = new Dictionary<int, string>
@@ -401,6 +401,12 @@ public sealed class SqliteDatabaseMigrator
             );
             CREATE INDEX ix_selected_screenshots_expiry
                 ON selected_key_screenshot_artifacts(expires_at_utc);
+            """,
+        [17] = """
+            -- Phase 2 activates the screenshot architecture reserved by schema 16. Bytes remain
+            -- internal, bounded, scoped through the source artifact, and subject to the same TTL.
+            ALTER TABLE selected_key_screenshot_artifacts ADD COLUMN media_type TEXT NULL;
+            ALTER TABLE selected_key_screenshot_artifacts ADD COLUMN content_blob BLOB NULL;
             """
     };
 

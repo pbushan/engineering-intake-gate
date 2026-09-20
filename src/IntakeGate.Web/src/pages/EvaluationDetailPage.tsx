@@ -56,6 +56,8 @@ export function EvaluationDetailPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [rerunning, setRerunning] = useState(false);
   const [confirmFresh, setConfirmFresh] = useState(false);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<NonNullable<RunItemDetail['keyVideoEvidence']>[number] | null>(null);
+  const [unavailableScreenshots, setUnavailableScreenshots] = useState<Set<string>>(new Set());
   const [rerunError, setRerunError] = useState<ApiError | null>(null);
   const viewKey = `${runId}|${evaluationId}|${refreshKey}`;
   const [result, setResult] = useState<{ key: string; detail: RunItemDetail | null; error: ApiError | null }>({ key: '', detail: null, error: null });
@@ -134,6 +136,17 @@ export function EvaluationDetailPage() {
 
       <Card variant="outlined">
         <CardContent>
+          <Typography component="h2" variant="h2" gutterBottom>Key Video Evidence</Typography>
+          {(detail.keyVideoEvidence ?? []).length ? <Grid container spacing={2}>{detail.keyVideoEvidence!.map((item) => {
+            const unavailable = unavailableScreenshots.has(item.screenshotId);
+            const alt = item.observation ? `${item.sourceVideoFileName} at ${formatTimestamp(Number(item.timestampSeconds))}: ${item.observation}` : `${item.sourceVideoFileName} at ${formatTimestamp(Number(item.timestampSeconds))}`;
+            return <Grid key={item.screenshotId} size={{ xs: 12, sm: 6, md: 4 }}><Card variant="outlined" sx={{ height: '100%' }}><Button aria-label={`Enlarge ${alt}`} disabled={unavailable} onClick={() => setSelectedScreenshot(item)} sx={{ display: 'block', width: '100%', p: 0, borderRadius: 0, overflow: 'hidden' }}>{unavailable ? <Box sx={{ p: 3 }}><Typography color="text.secondary">Screenshot unavailable or expired</Typography></Box> : <Box component="img" src={item.artifactUrl} alt={alt} loading="lazy" onError={() => setUnavailableScreenshots((current) => new Set(current).add(item.screenshotId))} sx={{ display: 'block', width: '100%', aspectRatio: '16 / 9', objectFit: 'contain', bgcolor: 'grey.950' }} />}</Button><CardContent><Typography component="p" variant="subtitle2">{item.sourceVideoFileName} · {formatTimestamp(Number(item.timestampSeconds))}</Typography><Typography variant="body2" sx={{ mt: 1 }}>{item.observation || 'No textual observation was retained.'}</Typography><Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>{item.provenance}</Typography></CardContent></Card></Grid>;
+          })}</Grid> : <Typography color="text.secondary">No key video screenshots were retained for this evaluation.</Typography>}
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined">
+        <CardContent>
           <Typography component="h2" variant="h2">Criteria results</Typography>
           {detail.satisfiedCriteria.length > 0 ? <Box sx={{ mt: 2 }}><Typography component="h3" variant="h3" gutterBottom>Satisfied criteria</Typography><Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>{detail.satisfiedCriteria.map((criterion) => <Chip key={criterion} color="success" variant="outlined" label={`${criterion} — Satisfied`} />)}</Stack></Box> : null}
           {detail.missingCriteria.length > 0 ? (
@@ -169,8 +182,18 @@ export function EvaluationDetailPage() {
       </Accordion>
 
       <Dialog open={confirmFresh} onClose={() => setConfirmFresh(false)} aria-labelledby="force-fresh-title"><DialogTitle id="force-fresh-title">Force Fresh Analysis?</DialogTitle><DialogContent><DialogContentText>This bypasses reusable attachment evidence and the prior evaluation, so it may incur additional AI cost. It remains a Dry Run and will not change Azure DevOps.</DialogContentText></DialogContent><DialogActions><Button onClick={() => setConfirmFresh(false)}>Cancel</Button><Button variant="contained" color="warning" disabled={rerunning} onClick={() => void rerun(true)}>Force Fresh Analysis</Button></DialogActions></Dialog>
+      <Dialog open={selectedScreenshot !== null} onClose={() => setSelectedScreenshot(null)} maxWidth="lg" fullWidth aria-labelledby="video-evidence-title"><DialogTitle id="video-evidence-title">Key video evidence{selectedScreenshot ? ` — ${selectedScreenshot.sourceVideoFileName} at ${formatTimestamp(Number(selectedScreenshot.timestampSeconds))}` : ''}</DialogTitle><DialogContent>{selectedScreenshot ? <Stack spacing={2}><Box component="img" src={selectedScreenshot.artifactUrl} alt={selectedScreenshot.observation || `${selectedScreenshot.sourceVideoFileName} at ${formatTimestamp(Number(selectedScreenshot.timestampSeconds))}`} sx={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', bgcolor: 'grey.950' }} /><Typography>{selectedScreenshot.observation || 'No textual observation was retained.'}</Typography></Stack> : null}</DialogContent><DialogActions><Button autoFocus onClick={() => setSelectedScreenshot(null)}>Close</Button></DialogActions></Dialog>
     </Stack>
   );
+}
+
+function formatTimestamp(seconds: number): string {
+  const totalTenths = Math.max(0, Math.round(seconds * 10));
+  const minutes = Math.floor(totalTenths / 600);
+  const secondsWithinMinute = totalTenths % 600;
+  const remainder = Math.floor(secondsWithinMinute / 10);
+  const tenths = secondsWithinMinute % 10;
+  return `${minutes}:${String(remainder).padStart(2, '0')}.${tenths}`;
 }
 
 function Summary({ detail }: { detail: RunItemDetail }) {

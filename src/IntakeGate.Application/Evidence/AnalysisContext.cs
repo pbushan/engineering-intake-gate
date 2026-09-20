@@ -8,8 +8,8 @@ namespace IntakeGate.Application.Evidence;
 
 public static class AnalysisContextVersions
 {
-    public const string Schema = "analysis-context-v1";
-    public const string NormalizedEvidence = "normalized-evidence-v1";
+    public const string Schema = "analysis-context-v2";
+    public const string NormalizedEvidence = "normalized-evidence-v2";
     public const string EvaluationContract = "intake-evaluation-v2";
 }
 
@@ -82,11 +82,38 @@ public sealed record AttachmentEvidenceArtifact(
     DateTimeOffset ExpiresAtUtc)
 {
     public IReadOnlyDictionary<string, int> RedactionCategoryCounts { get; init; } = new Dictionary<string, int>();
+    public PdfEvidenceMetadata? Pdf { get; init; }
+    public AudioEvidenceMetadata? Audio { get; init; }
     public VideoEvidenceMetadata? Video { get; init; }
     public IReadOnlyList<SelectedKeyScreenshot> SelectedKeyScreenshots { get; init; } = [];
 }
 
-// PR 2 extension contracts. This phase deliberately creates no media artifacts.
+public enum EvidenceSubstageStatus
+{
+    NotApplicable,
+    Completed,
+    Partial,
+    Unavailable,
+    Failed,
+    Reused
+}
+
+public sealed record PdfPageEvidence(int PageNumber, bool TextExtracted, bool VisuallyInspected,
+    string Evidence, IReadOnlyList<string> Warnings);
+public sealed record PdfEvidenceMetadata(int TotalPages, int PagesInspected, int TextExtractedPages,
+    int VisuallyInspectedPages, bool Truncated, IReadOnlyList<PdfPageEvidence> Pages,
+    IReadOnlyList<string> Warnings);
+
+public sealed record AudioEvidenceMetadata(
+    double? DurationSeconds,
+    EvidenceSubstageStatus ProbeStatus,
+    EvidenceSubstageStatus TranscriptionStatus,
+    string? Provider,
+    string? Model,
+    string? Version,
+    IReadOnlyList<TranscriptSegment> Transcript,
+    IReadOnlyList<string> Warnings);
+
 public sealed record VideoEvidenceMetadata(
     double? DurationSeconds,
     int? Width,
@@ -94,11 +121,41 @@ public sealed record VideoEvidenceMetadata(
     string? MediaProcessorVersion,
     IReadOnlyList<TranscriptSegment> Transcript,
     IReadOnlyList<VisualObservation> VisualObservations,
-    FrameSamplingMetadata? FrameSampling);
+    FrameSamplingMetadata? FrameSampling)
+{
+    public bool AudioPresent { get; init; }
+    public EvidenceSubstageStatus ProbeStatus { get; init; } = EvidenceSubstageStatus.Completed;
+    public EvidenceSubstageStatus AudioExtractionStatus { get; init; } = EvidenceSubstageStatus.NotApplicable;
+    public EvidenceSubstageStatus TranscriptionStatus { get; init; } = EvidenceSubstageStatus.NotApplicable;
+    public EvidenceSubstageStatus FrameExtractionStatus { get; init; } = EvidenceSubstageStatus.NotApplicable;
+    public EvidenceSubstageStatus VisualAnalysisStatus { get; init; } = EvidenceSubstageStatus.NotApplicable;
+    public EvidenceSubstageStatus ScreenshotSelectionStatus { get; init; } = EvidenceSubstageStatus.NotApplicable;
+    public string? TranscriptionProvider { get; init; }
+    public string? TranscriptionModel { get; init; }
+    public string? TranscriptionVersion { get; init; }
+    public string? VisionProvider { get; init; }
+    public string? VisionModel { get; init; }
+    public string? VisionVersion { get; init; }
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
 public sealed record TranscriptSegment(double StartSeconds, double EndSeconds, string Text, string Provider, string Model, string Version, IReadOnlyList<string> Warnings);
 public sealed record VisualObservation(double TimestampSeconds, string Observation, string Provider, string Model, string Version, string FrameIdentity);
 public sealed record FrameSamplingMetadata(string Strategy, int FramesConsidered, int FramesInspected, bool Truncated);
-public sealed record SelectedKeyScreenshot(string SourceAttachmentId, string SourceContentSha256, double TimestampSeconds, string DerivedSha256, int Width, int Height, long SizeBytes, string Provenance, string StorageReference, DateTimeOffset ExpiresAtUtc);
+public sealed record SelectedKeyScreenshot(string SourceAttachmentId, string SourceContentSha256, double TimestampSeconds, string DerivedSha256, int Width, int Height, long SizeBytes, string Provenance, string StorageReference, DateTimeOffset ExpiresAtUtc)
+{
+    public string Observation { get; init; } = string.Empty;
+    public string PipelineVersion { get; init; } = string.Empty;
+}
+
+public sealed record SelectedKeyScreenshotArtifact(
+    string ScreenshotId,
+    string SourceArtifactId,
+    string Organization,
+    string Project,
+    SelectedKeyScreenshot Metadata,
+    string MediaType,
+    byte[] Content,
+    DateTimeOffset ExpiresAtUtc);
 
 public sealed record ReusableEvaluation(
     string EquivalenceKey,
@@ -119,6 +176,8 @@ public interface IAnalysisCacheRepository
     Task SaveEvaluationAsync(ReusableEvaluation evaluation, CancellationToken cancellationToken = default);
     Task SaveContextAsync(AnalysisContextSnapshot context, CancellationToken cancellationToken = default);
     Task<AnalysisContextSnapshot?> GetContextAsync(string snapshotId, DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
+    Task SaveScreenshotAsync(SelectedKeyScreenshotArtifact screenshot, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    Task<SelectedKeyScreenshotArtifact?> GetScreenshotAsync(string screenshotId, string organization, string project, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult<SelectedKeyScreenshotArtifact?>(null);
     Task<EvidenceCleanupResult> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
 }
 
@@ -130,6 +189,8 @@ public sealed class NullAnalysisCacheRepository : IAnalysisCacheRepository
     public Task SaveEvaluationAsync(ReusableEvaluation evaluation, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task SaveContextAsync(AnalysisContextSnapshot context, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task<AnalysisContextSnapshot?> GetContextAsync(string snapshotId, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult<AnalysisContextSnapshot?>(null);
+    public Task SaveScreenshotAsync(SelectedKeyScreenshotArtifact screenshot, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task<SelectedKeyScreenshotArtifact?> GetScreenshotAsync(string screenshotId, string organization, string project, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult<SelectedKeyScreenshotArtifact?>(null);
     public Task<EvidenceCleanupResult> DeleteExpiredAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => Task.FromResult(new EvidenceCleanupResult(0, 0, 0, 0));
 }
 
@@ -150,6 +211,20 @@ public static class AnalysisFingerprint
         limits.MaximumImageBytes,
         limits.MaximumCsvRows,
         limits.MaximumStructuredTextDepth,
+        limits.MaximumSpreadsheetSheets,
+        limits.MaximumSpreadsheetRowsPerSheet,
+        limits.MaximumSpreadsheetColumns,
+        limits.MaximumSpreadsheetCells,
+        limits.MaximumMediaDurationSeconds,
+        limits.MaximumMediaDimension,
+        limits.MaximumDecodedPixels,
+        limits.MaximumSampledFrames,
+        limits.MaximumFrameBytes,
+        limits.MaximumSelectedVideoScreenshots,
+        limits.MaximumRetainedScreenshotBytes,
+        limits.MaximumTranscriptCharacters,
+        limits.MediaProcessTimeoutSeconds,
+        limits.MaximumConcurrentMediaJobs,
         MaximumExtractedCharacters = maximumExtractedCharacters
     });
 

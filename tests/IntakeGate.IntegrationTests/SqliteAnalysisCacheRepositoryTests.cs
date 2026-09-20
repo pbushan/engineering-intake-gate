@@ -90,6 +90,48 @@ public sealed class SqliteAnalysisCacheRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task PH2_ScreenshotLookupIsScopeBoundAndExpiresWithItsSourceArtifact()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"intake-cache-{Guid.NewGuid():N}.db");
+        try
+        {
+            await new SqliteDatabaseMigrator(path).MigrateAsync();
+            var repository = new SqliteAnalysisCacheRepository(path);
+            var now = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+            var artifact = Artifact(now);
+            await repository.SaveAttachmentAsync(artifact);
+            var screenshotId = AnalysisFingerprint.Sha256("selected screenshot");
+            var metadata = new SelectedKeyScreenshot(
+                artifact.AttachmentId, artifact.ContentSha256, 12.7, AnalysisFingerprint.Sha256("jpeg"),
+                640, 360, 4, "sampling-v1", screenshotId, artifact.ExpiresAtUtc)
+            {
+                Observation = "Visible error E-42.",
+                PipelineVersion = "selection-v1"
+            };
+            await repository.SaveScreenshotAsync(new SelectedKeyScreenshotArtifact(
+                screenshotId, artifact.ArtifactId, artifact.Organization, artifact.Project,
+                metadata, "image/jpeg", [1, 2, 3, 4], artifact.ExpiresAtUtc));
+
+            var stored = await repository.GetScreenshotAsync(
+                screenshotId, artifact.Organization, artifact.Project, now);
+
+            Assert.NotNull(stored);
+            Assert.Equal("image/jpeg", stored.MediaType);
+            Assert.Equal([1, 2, 3, 4], stored.Content);
+            Assert.DoesNotContain(Path.GetTempPath(), stored.Metadata.StorageReference, StringComparison.Ordinal);
+            Assert.Null(await repository.GetScreenshotAsync(screenshotId, "https://other-org", artifact.Project, now));
+            Assert.Null(await repository.GetScreenshotAsync(screenshotId, artifact.Organization, "other-project", now));
+            Assert.Null(await repository.GetScreenshotAsync(
+                screenshotId, artifact.Organization, artifact.Project, artifact.ExpiresAtUtc));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(path);
+        }
+    }
+
     private static AttachmentEvidenceArtifact Artifact(DateTimeOffset now)
     {
         var hash = AnalysisFingerprint.Sha256("content");

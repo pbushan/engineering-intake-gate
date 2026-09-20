@@ -23,6 +23,7 @@ Engineering Intake Gate applies one explicit, repeatable quality gate before inv
 - Provides Home metrics, run history, run detail, evaluation detail, System Health, and actor-aware Audit views.
 - Records per-request provider/model usage and persisted USD estimated AI cost, including retry, partial, and unavailable-cost semantics.
 - Persists a bounded, redacted Analysis Context and attachment-evidence cache for 30 days by default, with smart rerun and explicit Force Fresh Analysis.
+- Extracts bounded XLSX/DOCX/PDF evidence and composite audio/video evidence, including timestamped transcripts, factual visual observations, and up to six internal key video screenshots.
 - Produces a structured ticket summary for both Engineering Ready and Intake Incomplete and previews the exact planned Azure DevOps comment/tag delta.
 - Enforces local Admin/Viewer RBAC, cookie sessions, CSRF protection, encrypted local credentials, and environment-variable credential references.
 - Activates append-only configuration generations so an active run cannot change underneath itself.
@@ -265,9 +266,9 @@ When enabled, the in-process scheduler evaluates future occurrences from the act
 - **Error:** a technical, provider, validation, or persistence failure; never treated as Intake Incomplete.
 - **Not Eligible:** outside the confirmed query boundary or excluded by policy; excluded from readiness metrics.
 
-Run and evaluation views show proposed effects independently from confirmed actual effects. Evaluation detail shows the exact persisted comment/tag plan, structured PASS/FAIL summary, Analysis Context, attachment reuse, and evaluation reuse. In this Controlled Dry Run release, actual effects remain empty.
+Run and evaluation views show proposed effects independently from confirmed actual effects. Evaluation detail shows the exact persisted comment/tag plan, structured PASS/FAIL summary, Analysis Context, attachment/media sub-stages, internal key video evidence, attachment reuse, and evaluation reuse. Generated screenshots are never uploaded to Azure DevOps. In this Controlled Dry Run release, actual effects remain empty.
 
-Use **Rerun** to reuse every valid artifact and skip the provider entirely when nothing relevant changed. Use **Force Fresh Analysis** only when fresh processing is needed; its confirmation notes that it can incur new AI cost. Both paths remain Dry Run and create a new audit. See [Analysis Context, evidence retention, and smart rerun](docs/ANALYSIS_CONTEXT_AND_REUSE.md).
+Use **Rerun** to reuse every valid artifact and skip the provider entirely when nothing relevant changed. Use **Force Fresh Analysis** only when fresh processing is needed; its confirmation notes that it can incur new AI cost. Both paths remain Dry Run and create a new audit. See [Analysis Context, evidence retention, and smart rerun](docs/ANALYSIS_CONTEXT_AND_REUSE.md) and [Attachment and media evidence](docs/ATTACHMENT_MEDIA_EVIDENCE.md).
 
 Estimated AI cost is a persisted USD estimate, not provider-billed cost. Every provider interaction with usage and known pricing contributes input and output token cost; retries therefore count. Evaluation cost is the sum of its provider interactions, run cost is the sum of its evaluations, and Home aggregates those persisted evaluation estimates once within the selected 7/30/90-day window. `—` means unavailable, not zero. Partial estimates show the known amount with concise coverage text, while a true known zero is `$0.00 USD`.
 
@@ -307,7 +308,7 @@ Important contents:
 
 **A valid restore using locally encrypted credentials requires a consistent SQLite/application-state backup and the matching `intake-gate.secret-key`.** Losing or mismatching the key intentionally makes those credentials undecryptable. Preserve the Data Protection key ring to retain existing sessions; otherwise users must sign in again. The product does not implement automated backups.
 
-The database also contains the model-pricing cache and its source/freshness metadata. Schema 16 adds separate expiring analysis-context, attachment-artifact, reusable-evaluation, and future selected-screenshot tables without rewriting profile, credential, or historical run data. Audit JSON retains provider/cost and reuse provenance; historical records without the additive fields continue to render.
+The database also contains the model-pricing cache and its source/freshness metadata. Schema 16 added separate expiring analysis-context, attachment-artifact, reusable-evaluation, and selected-screenshot tables without rewriting profile, credential, or historical run data. Schema 17 activates bounded screenshot bytes in that existing screenshot architecture. Audit JSON retains provider/cost and reuse provenance; historical records without the additive fields continue to render.
 
 ## Security
 

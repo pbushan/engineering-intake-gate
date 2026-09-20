@@ -66,6 +66,13 @@ public static class OperationalEndpoints
             .Produces<ApiErrorResponse>(StatusCodes.Status403Forbidden)
             .Produces<ApiErrorResponse>(StatusCodes.Status404NotFound);
 
+        endpoints.MapGet("/api/runs/{runId:guid}/items/{evaluationId}/screenshots/{screenshotId}", GetScreenshotAsync)
+            .RequireAuthorization(LocalAuthPolicies.Authenticated)
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ApiErrorResponse>(StatusCodes.Status401Unauthorized)
+            .Produces<ApiErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ApiErrorResponse>(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 
@@ -252,6 +259,27 @@ public static class OperationalEndpoints
         return result is null
             ? Results.NotFound(new ApiErrorResponse("RunItemNotFound", "The requested run item was not found."))
             : Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetScreenshotAsync(
+        Guid runId,
+        string evaluationId,
+        string screenshotId,
+        OperationalRunReadService service,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (evaluationId.Length is < 1 or > 100 || screenshotId.Length != 64 ||
+            screenshotId.Any(character => !Uri.IsHexDigit(character)))
+            return Results.NotFound(new ApiErrorResponse("ScreenshotNotFound", "The selected evidence screenshot is unavailable or has expired."));
+        var screenshot = await service.GetScreenshotAsync(runId, evaluationId, screenshotId, cancellationToken);
+        if (screenshot is null)
+            return Results.NotFound(new ApiErrorResponse("ScreenshotNotFound", "The selected evidence screenshot is unavailable or has expired."));
+        // Retained evidence can expire independently of the browser session. Do not let a client
+        // cache extend the effective lifetime beyond the repository's authoritative expiry check.
+        httpContext.Response.Headers.CacheControl = "private, no-store";
+        httpContext.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return Results.File(screenshot.Content, screenshot.MediaType, enableRangeProcessing: false);
     }
 
     private static bool TryResolve(AnalyzeWorkItemRequest request, AzureDevOpsConfiguration ado, out int id)

@@ -16,8 +16,14 @@ compose() {
 }
 
 cleanup() {
+    status=$?
+    trap - EXIT INT TERM
+    if [ "$status" -ne 0 ]; then
+        compose logs >&2 || true
+    fi
     compose down --volumes --remove-orphans >/dev/null 2>&1 || true
     rm -f "$auth_cookie_jar"
+    exit "$status"
 }
 trap cleanup EXIT INT TERM
 
