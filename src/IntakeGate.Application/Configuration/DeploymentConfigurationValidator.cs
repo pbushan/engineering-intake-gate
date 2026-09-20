@@ -137,8 +137,26 @@ public sealed class DeploymentConfigurationValidator : IDeploymentConfigurationV
         PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumImageBytes, "processing.attachmentLimits.maximumImageBytes", errors);
         PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumCsvRows, "processing.attachmentLimits.maximumCsvRows", errors);
         PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumStructuredTextDepth, "processing.attachmentLimits.maximumStructuredTextDepth", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumSpreadsheetSheets, "processing.attachmentLimits.maximumSpreadsheetSheets", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumSpreadsheetRowsPerSheet, "processing.attachmentLimits.maximumSpreadsheetRowsPerSheet", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumSpreadsheetColumns, "processing.attachmentLimits.maximumSpreadsheetColumns", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumSpreadsheetCells, "processing.attachmentLimits.maximumSpreadsheetCells", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumMediaDurationSeconds, "processing.attachmentLimits.maximumMediaDurationSeconds", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumMediaDimension, "processing.attachmentLimits.maximumMediaDimension", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumDecodedPixels, "processing.attachmentLimits.maximumDecodedPixels", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumSampledFrames, "processing.attachmentLimits.maximumSampledFrames", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumFrameBytes, "processing.attachmentLimits.maximumFrameBytes", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumSelectedVideoScreenshots, "processing.attachmentLimits.maximumSelectedVideoScreenshots", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumRetainedScreenshotBytes, "processing.attachmentLimits.maximumRetainedScreenshotBytes", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumTranscriptCharacters, "processing.attachmentLimits.maximumTranscriptCharacters", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MediaProcessTimeoutSeconds, "processing.attachmentLimits.mediaProcessTimeoutSeconds", errors);
+        PositiveIfSpecified(input.Processing?.AttachmentLimits?.MaximumConcurrentMediaJobs, "processing.attachmentLimits.maximumConcurrentMediaJobs", errors);
         AtMostInt32(input.Processing?.AttachmentLimits?.MaximumBytesPerAttachment, "processing.attachmentLimits.maximumBytesPerAttachment", errors);
         AtMostInt32(input.Processing?.AttachmentLimits?.MaximumImageBytes, "processing.attachmentLimits.maximumImageBytes", errors);
+        AtMostInt32(input.Processing?.AttachmentLimits?.MaximumFrameBytes, "processing.attachmentLimits.maximumFrameBytes", errors);
+        AtMostInt32(input.Processing?.AttachmentLimits?.MaximumRetainedScreenshotBytes, "processing.attachmentLimits.maximumRetainedScreenshotBytes", errors);
+        if (input.Processing?.AttachmentLimits?.MaximumSelectedVideoScreenshots is > DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots)
+            errors.Add($"processing.attachmentLimits.maximumSelectedVideoScreenshots must be {DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots} or less.");
         Positive(input.Audit?.RetentionDays, "audit.retentionDays", errors);
         PositiveIfSpecified(input.Audit?.EvidenceRetentionDays, "audit.evidenceRetentionDays", errors);
         PositiveIfSpecified(input.Audit?.MaximumSelectedVideoScreenshots, "audit.maximumSelectedVideoScreenshots", errors);
@@ -190,7 +208,23 @@ public sealed class DeploymentConfigurationValidator : IDeploymentConfigurationV
                     input.Processing.AttachmentLimits.MaximumImageCount ?? input.Processing.AttachmentLimits.MaximumCount.Value,
                     input.Processing.AttachmentLimits.MaximumImageBytes ?? input.Processing.AttachmentLimits.MaximumBytesPerAttachment.Value,
                     input.Processing.AttachmentLimits.MaximumCsvRows ?? 1_000,
-                    input.Processing.AttachmentLimits.MaximumStructuredTextDepth ?? 32)),
+                    input.Processing.AttachmentLimits.MaximumStructuredTextDepth ?? 32)
+                {
+                    MaximumSpreadsheetSheets = input.Processing.AttachmentLimits.MaximumSpreadsheetSheets ?? DeploymentConfigurationDefaults.MaximumSpreadsheetSheets,
+                    MaximumSpreadsheetRowsPerSheet = input.Processing.AttachmentLimits.MaximumSpreadsheetRowsPerSheet ?? DeploymentConfigurationDefaults.MaximumSpreadsheetRowsPerSheet,
+                    MaximumSpreadsheetColumns = input.Processing.AttachmentLimits.MaximumSpreadsheetColumns ?? DeploymentConfigurationDefaults.MaximumSpreadsheetColumns,
+                    MaximumSpreadsheetCells = input.Processing.AttachmentLimits.MaximumSpreadsheetCells ?? DeploymentConfigurationDefaults.MaximumSpreadsheetCells,
+                    MaximumMediaDurationSeconds = input.Processing.AttachmentLimits.MaximumMediaDurationSeconds ?? DeploymentConfigurationDefaults.MaximumMediaDurationSeconds,
+                    MaximumMediaDimension = input.Processing.AttachmentLimits.MaximumMediaDimension ?? DeploymentConfigurationDefaults.MaximumMediaDimension,
+                    MaximumDecodedPixels = input.Processing.AttachmentLimits.MaximumDecodedPixels ?? DeploymentConfigurationDefaults.MaximumDecodedPixels,
+                    MaximumSampledFrames = input.Processing.AttachmentLimits.MaximumSampledFrames ?? DeploymentConfigurationDefaults.MaximumSampledFrames,
+                    MaximumFrameBytes = input.Processing.AttachmentLimits.MaximumFrameBytes ?? DeploymentConfigurationDefaults.MaximumFrameBytes,
+                    MaximumSelectedVideoScreenshots = input.Processing.AttachmentLimits.MaximumSelectedVideoScreenshots ?? DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots,
+                    MaximumRetainedScreenshotBytes = input.Processing.AttachmentLimits.MaximumRetainedScreenshotBytes ?? DeploymentConfigurationDefaults.MaximumRetainedScreenshotBytes,
+                    MaximumTranscriptCharacters = input.Processing.AttachmentLimits.MaximumTranscriptCharacters ?? DeploymentConfigurationDefaults.MaximumTranscriptCharacters,
+                    MediaProcessTimeoutSeconds = input.Processing.AttachmentLimits.MediaProcessTimeoutSeconds ?? DeploymentConfigurationDefaults.MediaProcessTimeoutSeconds,
+                    MaximumConcurrentMediaJobs = input.Processing.AttachmentLimits.MaximumConcurrentMediaJobs ?? DeploymentConfigurationDefaults.MaximumConcurrentMediaJobs
+                }),
             new AuditConfiguration(input.Audit!.RetentionDays!.Value)
             {
                 EvidenceRetentionDays = input.Audit.EvidenceRetentionDays ?? DeploymentConfigurationDefaults.EvidenceRetentionDays,

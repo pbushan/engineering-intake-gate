@@ -1776,6 +1776,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{runId}/items/{evaluationId}/screenshots/{screenshotId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                    evaluationId: string;
+                    screenshotId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/support/health": {
         parameters: {
             query?: never;
@@ -3532,7 +3596,7 @@ export interface components {
             environment: string;
         };
         /** @enum {unknown} */
-        AttachmentInspectionMode: "text" | "structuredText" | "pdfText" | "image" | "none";
+        AttachmentInspectionMode: "text" | "structuredText" | "pdfText" | "pdfTextAndVision" | "spreadsheet" | "image" | "audioTranscript" | "videoComposite" | "none";
         AttachmentLimitsRequest: {
             /** Format: int32 */
             maximumCount: null | number | string;
@@ -3550,6 +3614,34 @@ export interface components {
             maximumCsvRows: null | number | string;
             /** Format: int32 */
             maximumStructuredTextDepth: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetSheets?: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetRowsPerSheet?: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetColumns?: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetCells?: null | number | string;
+            /** Format: int32 */
+            maximumMediaDurationSeconds?: null | number | string;
+            /** Format: int32 */
+            maximumMediaDimension?: null | number | string;
+            /** Format: int64 */
+            maximumDecodedPixels?: null | number | string;
+            /** Format: int32 */
+            maximumSampledFrames?: null | number | string;
+            /** Format: int64 */
+            maximumFrameBytes?: null | number | string;
+            /** Format: int32 */
+            maximumSelectedVideoScreenshots?: null | number | string;
+            /** Format: int64 */
+            maximumRetainedScreenshotBytes?: null | number | string;
+            /** Format: int32 */
+            maximumTranscriptCharacters?: null | number | string;
+            /** Format: int32 */
+            mediaProcessTimeoutSeconds?: null | number | string;
+            /** Format: int32 */
+            maximumConcurrentMediaJobs?: null | number | string;
         };
         AttachmentLimitsResponse: {
             /** Format: int32 */
@@ -3568,6 +3660,34 @@ export interface components {
             maximumCsvRows: number | string;
             /** Format: int32 */
             maximumStructuredTextDepth: number | string;
+            /** Format: int32 */
+            maximumSpreadsheetSheets?: number | string;
+            /** Format: int32 */
+            maximumSpreadsheetRowsPerSheet?: number | string;
+            /** Format: int32 */
+            maximumSpreadsheetColumns?: number | string;
+            /** Format: int32 */
+            maximumSpreadsheetCells?: number | string;
+            /** Format: int32 */
+            maximumMediaDurationSeconds?: number | string;
+            /** Format: int32 */
+            maximumMediaDimension?: number | string;
+            /** Format: int64 */
+            maximumDecodedPixels?: number | string;
+            /** Format: int32 */
+            maximumSampledFrames?: number | string;
+            /** Format: int64 */
+            maximumFrameBytes?: number | string;
+            /** Format: int32 */
+            maximumSelectedVideoScreenshots?: number | string;
+            /** Format: int64 */
+            maximumRetainedScreenshotBytes?: number | string;
+            /** Format: int32 */
+            maximumTranscriptCharacters?: number | string;
+            /** Format: int32 */
+            mediaProcessTimeoutSeconds?: number | string;
+            /** Format: int32 */
+            maximumConcurrentMediaJobs?: number | string;
         };
         AttachmentProcessingResponse: {
             attachmentId: string;
@@ -3589,9 +3709,23 @@ export interface components {
             failureCategory: null | string;
             warnings: string[];
             normalizedEvidencePreview: string;
+            pdf?: null | components["schemas"]["PdfEvidenceMetadata"];
+            audio?: null | components["schemas"]["AudioEvidenceMetadata"];
+            video?: null | components["schemas"]["VideoEvidenceMetadata"];
         };
         /** @enum {unknown} */
         AttachmentProcessingStatus: "processed" | "partial" | "unsupported" | "unavailable" | "error";
+        AudioEvidenceMetadata: {
+            /** Format: double */
+            durationSeconds: null | number | string;
+            probeStatus: components["schemas"]["EvidenceSubstageStatus"];
+            transcriptionStatus: components["schemas"]["EvidenceSubstageStatus"];
+            provider: null | string;
+            model: null | string;
+            version: null | string;
+            transcript: components["schemas"]["TranscriptSegment"][];
+            warnings: string[];
+        };
         /** @enum {unknown} */
         AuditActorDisplayType: "user" | "system" | "unknown";
         AuditActorResponse: {
@@ -3813,6 +3947,8 @@ export interface components {
         };
         /** @enum {unknown} */
         EvaluationProcessingStatus: "completed" | "error";
+        /** @enum {unknown} */
+        EvidenceSubstageStatus: "notApplicable" | "completed" | "partial" | "unavailable" | "failed" | "reused";
         ExclusionRequest: {
             id: null | string;
             field: null | string;
@@ -3827,6 +3963,14 @@ export interface components {
         };
         /** @enum {unknown} */
         ExecutionMode: "live" | "dryRun";
+        FrameSamplingMetadata: {
+            strategy: string;
+            /** Format: int32 */
+            framesConsidered: number | string;
+            /** Format: int32 */
+            framesInspected: number | string;
+            truncated: boolean;
+        };
         HomeHealthWarningResponse: {
             code: string;
             title: string;
@@ -3883,6 +4027,23 @@ export interface components {
             settingsReady: boolean;
             provider: null | string;
             model: null | string;
+        };
+        KeyVideoEvidenceResponse: {
+            screenshotId: string;
+            sourceVideoFileName: string;
+            /** Format: double */
+            timestampSeconds: number | string;
+            observation: string;
+            provenance: string;
+            /** Format: int32 */
+            width: number | string;
+            /** Format: int32 */
+            height: number | string;
+            /** Format: int64 */
+            sizeBytes: number | string;
+            /** Format: date-time */
+            expiresAtUtc: string;
+            artifactUrl: string;
         };
         LegacyProfileImportRequest: {
             profileYaml: null | string;
@@ -3981,6 +4142,34 @@ export interface components {
             maximumCsvRows: null | number | string;
             /** Format: int32 */
             maximumStructuredTextDepth: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetSheets?: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetRowsPerSheet?: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetColumns?: null | number | string;
+            /** Format: int32 */
+            maximumSpreadsheetCells?: null | number | string;
+            /** Format: int32 */
+            maximumMediaDurationSeconds?: null | number | string;
+            /** Format: int32 */
+            maximumMediaDimension?: null | number | string;
+            /** Format: int64 */
+            maximumDecodedPixels?: null | number | string;
+            /** Format: int32 */
+            maximumSampledFrames?: null | number | string;
+            /** Format: int64 */
+            maximumFrameBytes?: null | number | string;
+            /** Format: int32 */
+            maximumSelectedVideoScreenshots?: null | number | string;
+            /** Format: int64 */
+            maximumRetainedScreenshotBytes?: null | number | string;
+            /** Format: int32 */
+            maximumTranscriptCharacters?: null | number | string;
+            /** Format: int32 */
+            mediaProcessTimeoutSeconds?: null | number | string;
+            /** Format: int32 */
+            maximumConcurrentMediaJobs?: null | number | string;
         };
         OnboardingAudit: {
             /** Format: int32 */
@@ -4089,6 +4278,27 @@ export interface components {
         OperationalDecisionState: "pass" | "fail" | "error" | "notEligible";
         /** @enum {unknown} */
         OperationalRunStatus: "running" | "completed" | "completedWithErrors" | "error";
+        PdfEvidenceMetadata: {
+            /** Format: int32 */
+            totalPages: number | string;
+            /** Format: int32 */
+            pagesInspected: number | string;
+            /** Format: int32 */
+            textExtractedPages: number | string;
+            /** Format: int32 */
+            visuallyInspectedPages: number | string;
+            truncated: boolean;
+            pages: components["schemas"]["PdfPageEvidence"][];
+            warnings: string[];
+        };
+        PdfPageEvidence: {
+            /** Format: int32 */
+            pageNumber: number | string;
+            textExtracted: boolean;
+            visuallyInspected: boolean;
+            evidence: string;
+            warnings: string[];
+        };
         PlannedAdoMutationResponse: {
             planId: string;
             evaluatedRevision: string;
@@ -4306,6 +4516,7 @@ export interface components {
             reusableEvidenceAvailable?: boolean;
             /** Format: date-time */
             reusableEvidenceExpiresAtUtc?: null | string;
+            keyVideoEvidence?: components["schemas"]["KeyVideoEvidenceResponse"][];
         };
         RunItemSummaryResponse: {
             evaluationId: string;
@@ -4481,6 +4692,17 @@ export interface components {
             /** Format: int32 */
             totalTokens: number | string;
         };
+        TranscriptSegment: {
+            /** Format: double */
+            startSeconds: number | string;
+            /** Format: double */
+            endSeconds: number | string;
+            text: string;
+            provider: string;
+            model: string;
+            version: string;
+            warnings: string[];
+        };
         ValidateAiModelRequest: {
             provider: null | string;
             model: null | string;
@@ -4515,6 +4737,41 @@ export interface components {
             application: string;
             version: string;
             environment: string;
+        };
+        VideoEvidenceMetadata: {
+            /** Format: double */
+            durationSeconds: null | number | string;
+            /** Format: int32 */
+            width: null | number | string;
+            /** Format: int32 */
+            height: null | number | string;
+            mediaProcessorVersion: null | string;
+            transcript: components["schemas"]["TranscriptSegment"][];
+            visualObservations: components["schemas"]["VisualObservation"][];
+            frameSampling: null | components["schemas"]["FrameSamplingMetadata"];
+            audioPresent?: boolean;
+            probeStatus?: components["schemas"]["EvidenceSubstageStatus"];
+            audioExtractionStatus?: components["schemas"]["EvidenceSubstageStatus"];
+            transcriptionStatus?: components["schemas"]["EvidenceSubstageStatus"];
+            frameExtractionStatus?: components["schemas"]["EvidenceSubstageStatus"];
+            visualAnalysisStatus?: components["schemas"]["EvidenceSubstageStatus"];
+            screenshotSelectionStatus?: components["schemas"]["EvidenceSubstageStatus"];
+            transcriptionProvider?: null | string;
+            transcriptionModel?: null | string;
+            transcriptionVersion?: null | string;
+            visionProvider?: null | string;
+            visionModel?: null | string;
+            visionVersion?: null | string;
+            warnings?: string[];
+        };
+        VisualObservation: {
+            /** Format: double */
+            timestampSeconds: number | string;
+            observation: string;
+            provider: string;
+            model: string;
+            version: string;
+            frameIdentity: string;
         };
         /** @enum {unknown} */
         WorkItemEligibility: "eligible" | "notEligible" | "unknown";

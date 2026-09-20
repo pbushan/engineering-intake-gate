@@ -28,7 +28,23 @@ public sealed record OnboardingContentLimits(int? MaximumTotalCharacters, int? M
     int? MaximumExtractedTextCharacters);
 public sealed record OnboardingAttachmentLimits(int? MaximumCount, long? MaximumBytesPerAttachment,
     long? MaximumAggregateBytes, int? MaximumPdfPages, int? MaximumImageCount,
-    long? MaximumImageBytes, int? MaximumCsvRows, int? MaximumStructuredTextDepth);
+    long? MaximumImageBytes, int? MaximumCsvRows, int? MaximumStructuredTextDepth)
+{
+    public int? MaximumSpreadsheetSheets { get; init; }
+    public int? MaximumSpreadsheetRowsPerSheet { get; init; }
+    public int? MaximumSpreadsheetColumns { get; init; }
+    public int? MaximumSpreadsheetCells { get; init; }
+    public int? MaximumMediaDurationSeconds { get; init; }
+    public int? MaximumMediaDimension { get; init; }
+    public long? MaximumDecodedPixels { get; init; }
+    public int? MaximumSampledFrames { get; init; }
+    public long? MaximumFrameBytes { get; init; }
+    public int? MaximumSelectedVideoScreenshots { get; init; }
+    public long? MaximumRetainedScreenshotBytes { get; init; }
+    public int? MaximumTranscriptCharacters { get; init; }
+    public int? MediaProcessTimeoutSeconds { get; init; }
+    public int? MaximumConcurrentMediaJobs { get; init; }
+}
 public sealed record OnboardingAudit(
     int? RetentionDays,
     int? EvidenceRetentionDays = null,
@@ -179,7 +195,23 @@ public static class AuthoritativeOnboardingDefaults
                     DeploymentConfigurationDefaults.MaximumImageCount,
                     DeploymentConfigurationDefaults.MaximumImageBytes,
                     DeploymentConfigurationDefaults.MaximumCsvRows,
-                    DeploymentConfigurationDefaults.MaximumStructuredTextDepth)),
+                    DeploymentConfigurationDefaults.MaximumStructuredTextDepth)
+                {
+                    MaximumSpreadsheetSheets = DeploymentConfigurationDefaults.MaximumSpreadsheetSheets,
+                    MaximumSpreadsheetRowsPerSheet = DeploymentConfigurationDefaults.MaximumSpreadsheetRowsPerSheet,
+                    MaximumSpreadsheetColumns = DeploymentConfigurationDefaults.MaximumSpreadsheetColumns,
+                    MaximumSpreadsheetCells = DeploymentConfigurationDefaults.MaximumSpreadsheetCells,
+                    MaximumMediaDurationSeconds = DeploymentConfigurationDefaults.MaximumMediaDurationSeconds,
+                    MaximumMediaDimension = DeploymentConfigurationDefaults.MaximumMediaDimension,
+                    MaximumDecodedPixels = DeploymentConfigurationDefaults.MaximumDecodedPixels,
+                    MaximumSampledFrames = DeploymentConfigurationDefaults.MaximumSampledFrames,
+                    MaximumFrameBytes = DeploymentConfigurationDefaults.MaximumFrameBytes,
+                    MaximumSelectedVideoScreenshots = DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots,
+                    MaximumRetainedScreenshotBytes = DeploymentConfigurationDefaults.MaximumRetainedScreenshotBytes,
+                    MaximumTranscriptCharacters = DeploymentConfigurationDefaults.MaximumTranscriptCharacters,
+                    MediaProcessTimeoutSeconds = DeploymentConfigurationDefaults.MediaProcessTimeoutSeconds,
+                    MaximumConcurrentMediaJobs = DeploymentConfigurationDefaults.MaximumConcurrentMediaJobs
+                }),
             new OnboardingAudit(null, DeploymentConfigurationDefaults.EvidenceRetentionDays,
                 DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots),
             [],
@@ -428,6 +460,22 @@ public sealed class OnboardingSetupService(
             values.Processing?.AttachmentLimits?.MaximumCsvRows, "Maximum CSV rows");
         Positive(fields, "processing.attachmentLimits.maximumStructuredTextDepth",
             values.Processing?.AttachmentLimits?.MaximumStructuredTextDepth, "Structured text depth");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumSpreadsheetSheets", values.Processing?.AttachmentLimits?.MaximumSpreadsheetSheets, "Maximum spreadsheet sheets");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumSpreadsheetRowsPerSheet", values.Processing?.AttachmentLimits?.MaximumSpreadsheetRowsPerSheet, "Maximum spreadsheet rows per sheet");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumSpreadsheetColumns", values.Processing?.AttachmentLimits?.MaximumSpreadsheetColumns, "Maximum spreadsheet columns");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumSpreadsheetCells", values.Processing?.AttachmentLimits?.MaximumSpreadsheetCells, "Maximum spreadsheet cells");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumMediaDurationSeconds", values.Processing?.AttachmentLimits?.MaximumMediaDurationSeconds, "Maximum media duration");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumMediaDimension", values.Processing?.AttachmentLimits?.MaximumMediaDimension, "Maximum media dimension");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumDecodedPixels", values.Processing?.AttachmentLimits?.MaximumDecodedPixels, "Maximum decoded pixels");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumSampledFrames", values.Processing?.AttachmentLimits?.MaximumSampledFrames, "Maximum sampled frames");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumFrameBytes", values.Processing?.AttachmentLimits?.MaximumFrameBytes, "Maximum frame bytes");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumSelectedVideoScreenshots", values.Processing?.AttachmentLimits?.MaximumSelectedVideoScreenshots, "Maximum selected video screenshots");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumRetainedScreenshotBytes", values.Processing?.AttachmentLimits?.MaximumRetainedScreenshotBytes, "Maximum retained screenshot bytes");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumTranscriptCharacters", values.Processing?.AttachmentLimits?.MaximumTranscriptCharacters, "Maximum transcript characters");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.mediaProcessTimeoutSeconds", values.Processing?.AttachmentLimits?.MediaProcessTimeoutSeconds, "Media process timeout");
+        PositiveWhenPresent(fields, "processing.attachmentLimits.maximumConcurrentMediaJobs", values.Processing?.AttachmentLimits?.MaximumConcurrentMediaJobs, "Maximum concurrent media jobs");
+        if (values.Processing?.AttachmentLimits?.MaximumSelectedVideoScreenshots is > DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots)
+            Add(fields, "processing.attachmentLimits.maximumSelectedVideoScreenshots", "Maximum selected video screenshots must be 6 or less.");
         Positive(fields, "aiRuntime.timeoutSeconds", values.AiRuntime?.TimeoutSeconds, "AI timeout");
         Positive(fields, "audit.retentionDays", values.Audit?.RetentionDays, "Retention days");
         PositiveWhenPresent(fields, "audit.evidenceRetentionDays", values.Audit?.EvidenceRetentionDays, "Evidence retention days");
@@ -564,6 +612,20 @@ public sealed class OnboardingSetupService(
             values.Processing.AttachmentLimits.MaximumImageBytes is null or <= 0 or > int.MaxValue ||
             values.Processing.AttachmentLimits.MaximumCsvRows is null or <= 0 ||
             values.Processing.AttachmentLimits.MaximumStructuredTextDepth is null or <= 0 ||
+            values.Processing.AttachmentLimits.MaximumSpreadsheetSheets is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumSpreadsheetRowsPerSheet is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumSpreadsheetColumns is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumSpreadsheetCells is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumMediaDurationSeconds is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumMediaDimension is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumDecodedPixels is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumSampledFrames is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumFrameBytes is <= 0 or > int.MaxValue ||
+            values.Processing.AttachmentLimits.MaximumSelectedVideoScreenshots is <= 0 or > DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots ||
+            values.Processing.AttachmentLimits.MaximumRetainedScreenshotBytes is <= 0 or > int.MaxValue ||
+            values.Processing.AttachmentLimits.MaximumTranscriptCharacters is <= 0 ||
+            values.Processing.AttachmentLimits.MediaProcessTimeoutSeconds is <= 0 ||
+            values.Processing.AttachmentLimits.MaximumConcurrentMediaJobs is <= 0 ||
             values.Audit.RetentionDays is <= 0 ||
             values.Audit.EvidenceRetentionDays is <= 0 or > 3650 ||
             values.Audit.MaximumSelectedVideoScreenshots is <= 0 or > DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots)
@@ -661,7 +723,23 @@ public sealed class OnboardingSetupService(
                     values.Processing.AttachmentLimits.MaximumImageCount ?? 0,
                     values.Processing.AttachmentLimits.MaximumImageBytes ?? 0,
                     values.Processing.AttachmentLimits.MaximumCsvRows ?? 0,
-                    values.Processing.AttachmentLimits.MaximumStructuredTextDepth ?? 0)),
+                    values.Processing.AttachmentLimits.MaximumStructuredTextDepth ?? 0)
+                {
+                    MaximumSpreadsheetSheets = values.Processing.AttachmentLimits.MaximumSpreadsheetSheets ?? DeploymentConfigurationDefaults.MaximumSpreadsheetSheets,
+                    MaximumSpreadsheetRowsPerSheet = values.Processing.AttachmentLimits.MaximumSpreadsheetRowsPerSheet ?? DeploymentConfigurationDefaults.MaximumSpreadsheetRowsPerSheet,
+                    MaximumSpreadsheetColumns = values.Processing.AttachmentLimits.MaximumSpreadsheetColumns ?? DeploymentConfigurationDefaults.MaximumSpreadsheetColumns,
+                    MaximumSpreadsheetCells = values.Processing.AttachmentLimits.MaximumSpreadsheetCells ?? DeploymentConfigurationDefaults.MaximumSpreadsheetCells,
+                    MaximumMediaDurationSeconds = values.Processing.AttachmentLimits.MaximumMediaDurationSeconds ?? DeploymentConfigurationDefaults.MaximumMediaDurationSeconds,
+                    MaximumMediaDimension = values.Processing.AttachmentLimits.MaximumMediaDimension ?? DeploymentConfigurationDefaults.MaximumMediaDimension,
+                    MaximumDecodedPixels = values.Processing.AttachmentLimits.MaximumDecodedPixels ?? DeploymentConfigurationDefaults.MaximumDecodedPixels,
+                    MaximumSampledFrames = values.Processing.AttachmentLimits.MaximumSampledFrames ?? DeploymentConfigurationDefaults.MaximumSampledFrames,
+                    MaximumFrameBytes = values.Processing.AttachmentLimits.MaximumFrameBytes ?? DeploymentConfigurationDefaults.MaximumFrameBytes,
+                    MaximumSelectedVideoScreenshots = values.Processing.AttachmentLimits.MaximumSelectedVideoScreenshots ?? DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots,
+                    MaximumRetainedScreenshotBytes = values.Processing.AttachmentLimits.MaximumRetainedScreenshotBytes ?? DeploymentConfigurationDefaults.MaximumRetainedScreenshotBytes,
+                    MaximumTranscriptCharacters = values.Processing.AttachmentLimits.MaximumTranscriptCharacters ?? DeploymentConfigurationDefaults.MaximumTranscriptCharacters,
+                    MediaProcessTimeoutSeconds = values.Processing.AttachmentLimits.MediaProcessTimeoutSeconds ?? DeploymentConfigurationDefaults.MediaProcessTimeoutSeconds,
+                    MaximumConcurrentMediaJobs = values.Processing.AttachmentLimits.MaximumConcurrentMediaJobs ?? DeploymentConfigurationDefaults.MaximumConcurrentMediaJobs
+                }),
             new AuditConfiguration(values.Audit.RetentionDays ?? 0)
             {
                 EvidenceRetentionDays = values.Audit.EvidenceRetentionDays ?? DeploymentConfigurationDefaults.EvidenceRetentionDays,

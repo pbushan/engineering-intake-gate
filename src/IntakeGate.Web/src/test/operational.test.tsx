@@ -275,6 +275,25 @@ describe('OPS-UI-006 evaluation detail', () => {
     expect(screen.getByText('Dry Run — no Azure DevOps changes were made.')).toBeVisible();
   });
 
+  it('renders accessible key video evidence and opens an enlarged detail view', async () => {
+    const user = userEvent.setup();
+    renderEvaluation();
+    expect(await screen.findByRole('heading', { name: 'Key Video Evidence' })).toBeVisible();
+    expect(screen.getByText('support-recording.mp4 · 0:12.7')).toBeVisible();
+    expect(screen.getByText('The checkout panel shows error E-42 for order 101.')).toBeVisible();
+    const enlarge = screen.getByRole('button', { name: /Enlarge support-recording\.mp4 at 0:12\.7/ });
+    await user.click(enlarge);
+    const dialog = screen.getByRole('dialog', { name: /Key video evidence — support-recording\.mp4 at 0:12\.7/ });
+    expect(within(dialog).getByRole('img')).toHaveAttribute('alt', 'The checkout panel shows error E-42 for order 101.');
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Key video evidence/ })).not.toBeInTheDocument());
+  });
+
+  it('shows a clear zero-screenshot state', async () => {
+    renderEvaluation({ ...runItemDetail, keyVideoEvidence: [] });
+    expect(await screen.findByText('No key video screenshots were retained for this evaluation.')).toBeVisible();
+  });
+
   it('confirms Force Fresh Analysis with clear cost and no-write copy', async () => {
     const user = userEvent.setup();
     renderEvaluation();

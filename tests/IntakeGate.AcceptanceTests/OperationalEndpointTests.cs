@@ -139,6 +139,8 @@ public sealed class OperationalEndpointTests
         Assert.Equal(HttpStatusCode.Forbidden, (await fixture.Viewer.PostAsync("/api/runs", null)).StatusCode);
         using var anonymous = fixture.Factory.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/runs")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await anonymous.GetAsync($"/api/runs/{parentId:D}/items/{evaluationId}/screenshots/{new string('a', 64)}")).StatusCode);
 
         using var manualDetail = await fixture.Viewer.GetAsync(
             manualBody.GetProperty("detailUrl").GetString()!);

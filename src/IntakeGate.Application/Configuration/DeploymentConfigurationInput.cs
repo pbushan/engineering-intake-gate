@@ -34,7 +34,31 @@ public sealed class ModelPricingInput { public string? Provider { get; init; } p
 public sealed class ScheduleInput { public bool Enabled { get; init; } public string? Expression { get; init; } public string? Timezone { get; init; } public string? InitialLookback { get; init; } }
 public sealed class ProcessingInput { public string? ExecutionMode { get; init; } public int? Concurrency { get; init; } public int? Retries { get; init; } public ContentLimitsInput? ContentLimits { get; init; } public AttachmentLimitsInput? AttachmentLimits { get; init; } }
 public sealed class ContentLimitsInput { public int? MaximumTotalCharacters { get; init; } public int? MaximumComments { get; init; } public int? MaximumExtractedTextCharacters { get; init; } }
-public sealed class AttachmentLimitsInput { public int? MaximumCount { get; init; } public long? MaximumBytesPerAttachment { get; init; } public long? MaximumAggregateBytes { get; init; } public int? MaximumPdfPages { get; init; } public int? MaximumImageCount { get; init; } public long? MaximumImageBytes { get; init; } public int? MaximumCsvRows { get; init; } public int? MaximumStructuredTextDepth { get; init; } }
+public sealed class AttachmentLimitsInput
+{
+    public int? MaximumCount { get; init; }
+    public long? MaximumBytesPerAttachment { get; init; }
+    public long? MaximumAggregateBytes { get; init; }
+    public int? MaximumPdfPages { get; init; }
+    public int? MaximumImageCount { get; init; }
+    public long? MaximumImageBytes { get; init; }
+    public int? MaximumCsvRows { get; init; }
+    public int? MaximumStructuredTextDepth { get; init; }
+    public int? MaximumSpreadsheetSheets { get; init; }
+    public int? MaximumSpreadsheetRowsPerSheet { get; init; }
+    public int? MaximumSpreadsheetColumns { get; init; }
+    public int? MaximumSpreadsheetCells { get; init; }
+    public int? MaximumMediaDurationSeconds { get; init; }
+    public int? MaximumMediaDimension { get; init; }
+    public long? MaximumDecodedPixels { get; init; }
+    public int? MaximumSampledFrames { get; init; }
+    public long? MaximumFrameBytes { get; init; }
+    public int? MaximumSelectedVideoScreenshots { get; init; }
+    public long? MaximumRetainedScreenshotBytes { get; init; }
+    public int? MaximumTranscriptCharacters { get; init; }
+    public int? MediaProcessTimeoutSeconds { get; init; }
+    public int? MaximumConcurrentMediaJobs { get; init; }
+}
 public sealed class AuditInput
 {
     public int? RetentionDays { get; init; }

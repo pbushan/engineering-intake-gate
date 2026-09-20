@@ -75,7 +75,21 @@ public static class DeploymentConfigurationDocuments
                 MaximumImageCount = profile.Processing.AttachmentLimits.MaximumImageCount,
                 MaximumImageBytes = profile.Processing.AttachmentLimits.MaximumImageBytes,
                 MaximumCsvRows = profile.Processing.AttachmentLimits.MaximumCsvRows,
-                MaximumStructuredTextDepth = profile.Processing.AttachmentLimits.MaximumStructuredTextDepth
+                MaximumStructuredTextDepth = profile.Processing.AttachmentLimits.MaximumStructuredTextDepth,
+                MaximumSpreadsheetSheets = profile.Processing.AttachmentLimits.MaximumSpreadsheetSheets,
+                MaximumSpreadsheetRowsPerSheet = profile.Processing.AttachmentLimits.MaximumSpreadsheetRowsPerSheet,
+                MaximumSpreadsheetColumns = profile.Processing.AttachmentLimits.MaximumSpreadsheetColumns,
+                MaximumSpreadsheetCells = profile.Processing.AttachmentLimits.MaximumSpreadsheetCells,
+                MaximumMediaDurationSeconds = profile.Processing.AttachmentLimits.MaximumMediaDurationSeconds,
+                MaximumMediaDimension = profile.Processing.AttachmentLimits.MaximumMediaDimension,
+                MaximumDecodedPixels = profile.Processing.AttachmentLimits.MaximumDecodedPixels,
+                MaximumSampledFrames = profile.Processing.AttachmentLimits.MaximumSampledFrames,
+                MaximumFrameBytes = profile.Processing.AttachmentLimits.MaximumFrameBytes,
+                MaximumSelectedVideoScreenshots = profile.Processing.AttachmentLimits.MaximumSelectedVideoScreenshots,
+                MaximumRetainedScreenshotBytes = profile.Processing.AttachmentLimits.MaximumRetainedScreenshotBytes,
+                MaximumTranscriptCharacters = profile.Processing.AttachmentLimits.MaximumTranscriptCharacters,
+                MediaProcessTimeoutSeconds = profile.Processing.AttachmentLimits.MediaProcessTimeoutSeconds,
+                MaximumConcurrentMediaJobs = profile.Processing.AttachmentLimits.MaximumConcurrentMediaJobs
             }
         },
         Audit = new AuditInput

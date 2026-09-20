@@ -69,6 +69,18 @@ public sealed class OperationalRunReadService(
         return ItemDetail(evaluation, generation, context);
     }
 
+    public async Task<SelectedKeyScreenshotArtifact?> GetScreenshotAsync(
+        Guid runId, string evaluationId, string screenshotId, CancellationToken cancellationToken)
+    {
+        var evaluation = await reader.GetEvaluationAsync(runId, evaluationId, cancellationToken);
+        if (evaluation?.AnalysisContextId is null) return null;
+        var context = await analysisCache.GetContextAsync(evaluation.AnalysisContextId, clock.UtcNow, cancellationToken);
+        if (context is null || !context.Evidence.Attachments.SelectMany(item => item.SelectedKeyScreenshots)
+                .Any(item => string.Equals(item.StorageReference, screenshotId, StringComparison.Ordinal))) return null;
+        return await analysisCache.GetScreenshotAsync(screenshotId, context.Organization, context.Project,
+            clock.UtcNow, cancellationToken);
+    }
+
     private static RunSummaryResponse Summary(OperationalRunAuditEnvelope envelope)
     {
         var incremental = envelope.IncrementalRun;
@@ -198,7 +210,14 @@ public sealed class OperationalRunReadService(
                 evaluation.PlannedMutation.ExactCommentBody, evaluation.PlannedMutation.FutureDerivedAttachmentUploads,
                 evaluation.PlannedMutation.ContentFingerprint),
             ReusableEvidenceAvailable = context is not null,
-            ReusableEvidenceExpiresAtUtc = evaluation.ReusableEvidenceExpiresAtUtc
+            ReusableEvidenceExpiresAtUtc = evaluation.ReusableEvidenceExpiresAtUtc,
+            KeyVideoEvidence = context?.Evidence.Attachments.SelectMany(attachment => attachment.SelectedKeyScreenshots
+                .Select(screenshot => new KeyVideoEvidenceResponse(
+                    screenshot.StorageReference, attachment.FileName, screenshot.TimestampSeconds,
+                    screenshot.Observation, screenshot.Provenance, screenshot.Width, screenshot.Height,
+                    screenshot.SizeBytes, screenshot.ExpiresAtUtc,
+                    $"/api/runs/{evaluation.RunId:D}/items/{Uri.EscapeDataString(evaluation.EvaluationId)}/screenshots/{Uri.EscapeDataString(screenshot.StorageReference)}")))
+                .Take(6 * Math.Max(1, context.Evidence.Attachments.Count)).ToArray() ?? []
         };
     }
 
@@ -229,7 +248,12 @@ public sealed class OperationalRunReadService(
         return new AttachmentProcessingResponse(item.AttachmentId, item.Name, item.MediaType,
             item.OriginalSize, item.ProcessingStatus, item.InspectionMode, item.ProcessorIdentity,
             item.ProcessorVersion, item.CacheReused, item.Truncated, item.Sampled,
-            item.PagesAvailable, item.PagesInspected, item.FailureCategory, item.Warnings, preview);
+            item.PagesAvailable, item.PagesInspected, item.FailureCategory, item.Warnings, preview)
+        {
+            Pdf = evidence?.Pdf,
+            Audio = evidence?.Audio,
+            Video = evidence?.Video
+        };
     }
 
     private async Task<RuntimeConfigurationGeneration?> GenerationAsync(

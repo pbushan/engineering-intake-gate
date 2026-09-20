@@ -146,6 +146,7 @@ public sealed record RunItemDetailResponse(
     public PlannedAdoMutationResponse? PlannedAdoMutation { get; init; }
     public bool ReusableEvidenceAvailable { get; init; }
     public DateTimeOffset? ReusableEvidenceExpiresAtUtc { get; init; }
+    public IReadOnlyList<KeyVideoEvidenceResponse> KeyVideoEvidence { get; init; } = [];
 }
 
 public sealed record StructuredTicketSummaryResponse(
@@ -194,7 +195,24 @@ public sealed record AttachmentProcessingResponse(
     int? PagesInspected,
     string? FailureCategory,
     IReadOnlyList<string> Warnings,
-    string NormalizedEvidencePreview);
+    string NormalizedEvidencePreview)
+{
+    public PdfEvidenceMetadata? Pdf { get; init; }
+    public AudioEvidenceMetadata? Audio { get; init; }
+    public VideoEvidenceMetadata? Video { get; init; }
+}
+
+public sealed record KeyVideoEvidenceResponse(
+    string ScreenshotId,
+    string SourceVideoFileName,
+    double TimestampSeconds,
+    string Observation,
+    string Provenance,
+    int Width,
+    int Height,
+    long SizeBytes,
+    DateTimeOffset ExpiresAtUtc,
+    string ArtifactUrl);
 
 public sealed record AiObservabilityResponse(
     string ConfiguredProvider,

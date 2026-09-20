@@ -10,6 +10,7 @@ using IntakeGate.Application.Time;
 using IntakeGate.Application.WorkItems;
 using IntakeGate.Infrastructure.Ai;
 using IntakeGate.Infrastructure.AzureDevOps;
+using IntakeGate.Infrastructure.Evidence;
 
 namespace IntakeGate.Host;
 
@@ -52,13 +53,30 @@ public sealed class RuntimeExecutionFactory(
         var configuration = generation.Configuration;
         var ado = azureDevOpsFactory.Create(configuration, adoSecret);
         var provider = aiFactory.Create(configuration, aiSecret);
+        var redactor = services.GetRequiredService<ISecretRedactor>();
+        var attachmentProvider = new ConfiguredAttachmentEvidenceAiProvider(
+            new HttpClient { Timeout = Timeout.InfiniteTimeSpan }, configuration,
+            new FixedProviderCredentialResolver(aiSecret.DangerousGetValue()));
+        var attachmentProcessing = new AttachmentProcessingService(
+            [
+                new TextAttachmentProcessor(),
+                new PdfAttachmentProcessor(services.GetRequiredService<IPdfPageRenderer>(), attachmentProvider, redactor),
+                new ImageAttachmentProcessor(),
+                new SpreadsheetAttachmentProcessor(),
+                new DocxAttachmentProcessor(),
+                new MediaAttachmentProcessor(services.GetRequiredService<IMediaTool>(), attachmentProvider, redactor)
+            ],
+            services.GetRequiredService<IAnalysisCacheRepository>(), redactor);
+        var evidencePreprocessor = new EvidencePreprocessor(
+            services.GetRequiredService<IContentNormalizer>(), redactor,
+            services.GetRequiredService<IEvidenceProcessingLog>(), attachmentProcessing);
         var evaluation = new IntakeEvaluationService(
             services.GetRequiredService<IEvaluationRequestBuilder>(), provider,
             services.GetRequiredService<EvaluationResponseParser>(),
             services.GetRequiredService<EvaluationContractValidator>(),
             services.GetRequiredService<IEvaluationLog>());
         var intake = new IntakeRunService(
-            services.GetRequiredService<IEvidencePreprocessor>(), evaluation,
+            evidencePreprocessor, evaluation,
             services.GetRequiredService<IIntakeDecisionHandler>(),
             services.GetRequiredService<IAuditRepository>(), services.GetRequiredService<IClock>(),
             services.GetRequiredService<IRunAuditLog>(), services.GetRequiredService<IAiCostAccountingService>(),
@@ -76,6 +94,11 @@ public sealed class RuntimeExecutionFactory(
             services.GetRequiredService<IAuditRepository>(), services.GetRequiredService<IIncrementalDiscoveryRepository>(),
             services.GetRequiredService<IClock>(), services.GetRequiredService<IWorkItemReadLog>(), reconciliation);
         return new(new RuntimeExecutionServices(generation, incremental, manual, provider), null);
+    }
+
+    private sealed class FixedProviderCredentialResolver(string value) : IProviderCredentialResolver
+    {
+        public string? Resolve(string environmentVariableName) => value;
     }
 
     private async Task<SecretValue?> ResolveExactAsync(RuntimeCredentialBinding binding, CancellationToken cancellationToken)

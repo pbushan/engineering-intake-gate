@@ -9,6 +9,19 @@ public static class DeploymentConfigurationDefaults
     public const int MaximumStructuredTextDepth = 32;
     public const int EvidenceRetentionDays = 30;
     public const int MaximumSelectedVideoScreenshots = 6;
+    public const int MaximumSpreadsheetSheets = 20;
+    public const int MaximumSpreadsheetRowsPerSheet = 200;
+    public const int MaximumSpreadsheetColumns = 50;
+    public const int MaximumSpreadsheetCells = 5_000;
+    public const int MaximumMediaDurationSeconds = 1_800;
+    public const int MaximumMediaDimension = 4_096;
+    public const long MaximumDecodedPixels = 33_554_432;
+    public const int MaximumSampledFrames = 12;
+    public const long MaximumFrameBytes = 5_242_880;
+    public const long MaximumRetainedScreenshotBytes = 3_145_728;
+    public const int MaximumTranscriptCharacters = 100_000;
+    public const int MediaProcessTimeoutSeconds = 120;
+    public const int MaximumConcurrentMediaJobs = 2;
 }
 
 public sealed record DeploymentConfiguration(DeploymentProfile Profile, IntakePolicy Policy, string PolicyFingerprint)
@@ -84,7 +97,23 @@ public sealed record AttachmentLimits(
     int MaximumImageCount = DeploymentConfigurationDefaults.MaximumImageCount,
     long MaximumImageBytes = DeploymentConfigurationDefaults.MaximumImageBytes,
     int MaximumCsvRows = DeploymentConfigurationDefaults.MaximumCsvRows,
-    int MaximumStructuredTextDepth = DeploymentConfigurationDefaults.MaximumStructuredTextDepth);
+    int MaximumStructuredTextDepth = DeploymentConfigurationDefaults.MaximumStructuredTextDepth)
+{
+    public int MaximumSpreadsheetSheets { get; init; } = DeploymentConfigurationDefaults.MaximumSpreadsheetSheets;
+    public int MaximumSpreadsheetRowsPerSheet { get; init; } = DeploymentConfigurationDefaults.MaximumSpreadsheetRowsPerSheet;
+    public int MaximumSpreadsheetColumns { get; init; } = DeploymentConfigurationDefaults.MaximumSpreadsheetColumns;
+    public int MaximumSpreadsheetCells { get; init; } = DeploymentConfigurationDefaults.MaximumSpreadsheetCells;
+    public int MaximumMediaDurationSeconds { get; init; } = DeploymentConfigurationDefaults.MaximumMediaDurationSeconds;
+    public int MaximumMediaDimension { get; init; } = DeploymentConfigurationDefaults.MaximumMediaDimension;
+    public long MaximumDecodedPixels { get; init; } = DeploymentConfigurationDefaults.MaximumDecodedPixels;
+    public int MaximumSampledFrames { get; init; } = DeploymentConfigurationDefaults.MaximumSampledFrames;
+    public long MaximumFrameBytes { get; init; } = DeploymentConfigurationDefaults.MaximumFrameBytes;
+    public int MaximumSelectedVideoScreenshots { get; init; } = DeploymentConfigurationDefaults.MaximumSelectedVideoScreenshots;
+    public long MaximumRetainedScreenshotBytes { get; init; } = DeploymentConfigurationDefaults.MaximumRetainedScreenshotBytes;
+    public int MaximumTranscriptCharacters { get; init; } = DeploymentConfigurationDefaults.MaximumTranscriptCharacters;
+    public int MediaProcessTimeoutSeconds { get; init; } = DeploymentConfigurationDefaults.MediaProcessTimeoutSeconds;
+    public int MaximumConcurrentMediaJobs { get; init; } = DeploymentConfigurationDefaults.MaximumConcurrentMediaJobs;
+}
 
 public sealed record AuditConfiguration(int RetentionDays)
 {

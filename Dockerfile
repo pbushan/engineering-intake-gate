@@ -17,6 +17,9 @@ RUN dotnet publish src/IntakeGate.Host/IntakeGate.Host.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /app/data /app/config && chown -R app:app /app
 USER app
 COPY --from=build --chown=app:app /app/publish ./

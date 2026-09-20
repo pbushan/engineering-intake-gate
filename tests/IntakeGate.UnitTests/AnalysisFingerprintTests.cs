@@ -63,7 +63,7 @@ public sealed class AnalysisFingerprintTests
 
         Assert.NotEqual(baseline, AnalysisFingerprint.Artifact("org", "project", "attachment", "content", "text", "2", "limits-v1"));
         Assert.NotEqual(baseline, AnalysisFingerprint.Artifact("org", "project", "attachment", "content", "text", "1", "limits-v2"));
-        Assert.NotEqual(baseline, AnalysisFingerprint.Artifact("org", "project", "attachment", "content", "text", "1", "limits-v1", "normalized-evidence-v2"));
+        Assert.NotEqual(baseline, AnalysisFingerprint.Artifact("org", "project", "attachment", "content", "text", "1", "limits-v1", "normalized-evidence-v3"));
     }
 
     private static EvaluationEvidence Evidence(string title, IReadOnlyList<string> tags) => new(

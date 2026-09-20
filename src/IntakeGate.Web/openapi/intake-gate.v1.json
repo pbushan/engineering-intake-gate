@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:18082/"
+      "url": "http://127.0.0.1:5080/"
     }
   ],
   "paths": {
@@ -1582,6 +1582,75 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{runId}/items/{evaluationId}/screenshots/{screenshotId}": {
+      "get": {
+        "tags": [
+          "OperationalEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "evaluationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "screenshotId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           },
           "401": {
             "description": "Unauthorized",
@@ -3679,7 +3748,11 @@
           "text",
           "structuredText",
           "pdfText",
+          "pdfTextAndVision",
+          "spreadsheet",
           "image",
+          "audioTranscript",
+          "videoComposite",
           "none"
         ]
       },
@@ -3767,6 +3840,132 @@
               "string"
             ],
             "format": "int32"
+          },
+          "maximumSpreadsheetSheets": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetRowsPerSheet": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetColumns": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetCells": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumMediaDurationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumMediaDimension": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumDecodedPixels": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumSampledFrames": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumFrameBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumSelectedVideoScreenshots": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumRetainedScreenshotBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumTranscriptCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "mediaProcessTimeoutSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumConcurrentMediaJobs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -3841,6 +4040,118 @@
             "format": "int32"
           },
           "maximumStructuredTextDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetSheets": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetRowsPerSheet": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetColumns": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetCells": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumMediaDurationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumMediaDimension": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumDecodedPixels": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumSampledFrames": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumFrameBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumSelectedVideoScreenshots": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumRetainedScreenshotBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumTranscriptCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "mediaProcessTimeoutSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumConcurrentMediaJobs": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -3952,6 +4263,36 @@
           },
           "normalizedEvidencePreview": {
             "type": "string"
+          },
+          "pdf": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PdfEvidenceMetadata"
+              }
+            ]
+          },
+          "audio": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AudioEvidenceMetadata"
+              }
+            ]
+          },
+          "video": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VideoEvidenceMetadata"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -3964,6 +4305,67 @@
           "unavailable",
           "error"
         ]
+      },
+      "AudioEvidenceMetadata": {
+        "required": [
+          "durationSeconds",
+          "probeStatus",
+          "transcriptionStatus",
+          "provider",
+          "model",
+          "version",
+          "transcript",
+          "warnings"
+        ],
+        "type": "object",
+        "properties": {
+          "durationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "probeStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "transcriptionStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "transcript": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "AuditActorDisplayType": {
         "enum": [
@@ -4966,6 +5368,16 @@
           "error"
         ]
       },
+      "EvidenceSubstageStatus": {
+        "enum": [
+          "notApplicable",
+          "completed",
+          "partial",
+          "unavailable",
+          "failed",
+          "reused"
+        ]
+      },
       "ExclusionRequest": {
         "required": [
           "id",
@@ -5037,6 +5449,40 @@
           "live",
           "dryRun"
         ]
+      },
+      "FrameSamplingMetadata": {
+        "required": [
+          "strategy",
+          "framesConsidered",
+          "framesInspected",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "strategy": {
+            "type": "string"
+          },
+          "framesConsidered": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "framesInspected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       },
       "HomeHealthWarningResponse": {
         "required": [
@@ -5283,6 +5729,75 @@
               "null",
               "string"
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "KeyVideoEvidenceResponse": {
+        "required": [
+          "screenshotId",
+          "sourceVideoFileName",
+          "timestampSeconds",
+          "observation",
+          "provenance",
+          "width",
+          "height",
+          "sizeBytes",
+          "expiresAtUtc",
+          "artifactUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "screenshotId": {
+            "type": "string"
+          },
+          "sourceVideoFileName": {
+            "type": "string"
+          },
+          "timestampSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "observation": {
+            "type": "string"
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "width": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sizeBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "artifactUrl": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -5760,6 +6275,132 @@
             "format": "int32"
           },
           "maximumStructuredTextDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetSheets": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetRowsPerSheet": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetColumns": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumSpreadsheetCells": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumMediaDurationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumMediaDimension": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumDecodedPixels": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumSampledFrames": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumFrameBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumSelectedVideoScreenshots": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumRetainedScreenshotBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "maximumTranscriptCharacters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "mediaProcessTimeoutSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maximumConcurrentMediaJobs": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "null",
@@ -6380,6 +7021,104 @@
           "completedWithErrors",
           "error"
         ]
+      },
+      "PdfEvidenceMetadata": {
+        "required": [
+          "totalPages",
+          "pagesInspected",
+          "textExtractedPages",
+          "visuallyInspectedPages",
+          "truncated",
+          "pages",
+          "warnings"
+        ],
+        "type": "object",
+        "properties": {
+          "totalPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pagesInspected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "textExtractedPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "visuallyInspectedPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PdfPageEvidence"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PdfPageEvidence": {
+        "required": [
+          "pageNumber",
+          "textExtracted",
+          "visuallyInspected",
+          "evidence",
+          "warnings"
+        ],
+        "type": "object",
+        "properties": {
+          "pageNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "textExtracted": {
+            "type": "boolean"
+          },
+          "visuallyInspected": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "PlannedAdoMutationResponse": {
         "required": [
@@ -7573,6 +8312,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "keyVideoEvidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyVideoEvidenceResponse"
+            }
           }
         },
         "additionalProperties": false
@@ -8371,6 +9116,55 @@
         },
         "additionalProperties": false
       },
+      "TranscriptSegment": {
+        "required": [
+          "startSeconds",
+          "endSeconds",
+          "text",
+          "provider",
+          "model",
+          "version",
+          "warnings"
+        ],
+        "type": "object",
+        "properties": {
+          "startSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "endSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "text": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "ValidateAiModelRequest": {
         "required": [
           "provider",
@@ -8519,6 +9313,176 @@
             "type": "string"
           },
           "environment": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VideoEvidenceMetadata": {
+        "required": [
+          "durationSeconds",
+          "width",
+          "height",
+          "mediaProcessorVersion",
+          "transcript",
+          "visualObservations",
+          "frameSampling"
+        ],
+        "type": "object",
+        "properties": {
+          "durationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "width": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "mediaProcessorVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "transcript": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            }
+          },
+          "visualObservations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisualObservation"
+            }
+          },
+          "frameSampling": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FrameSamplingMetadata"
+              }
+            ]
+          },
+          "audioPresent": {
+            "type": "boolean"
+          },
+          "probeStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "audioExtractionStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "transcriptionStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "frameExtractionStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "visualAnalysisStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "screenshotSelectionStatus": {
+            "$ref": "#/components/schemas/EvidenceSubstageStatus"
+          },
+          "transcriptionProvider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "transcriptionModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "transcriptionVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "visionProvider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "visionModel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "visionVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VisualObservation": {
+        "required": [
+          "timestampSeconds",
+          "observation",
+          "provider",
+          "model",
+          "version",
+          "frameIdentity"
+        ],
+        "type": "object",
+        "properties": {
+          "timestampSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "observation": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "frameIdentity": {
             "type": "string"
           }
         },

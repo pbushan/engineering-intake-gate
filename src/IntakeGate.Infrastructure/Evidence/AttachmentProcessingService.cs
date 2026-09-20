@@ -151,7 +151,9 @@ public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessin
                 continue;
             }
 
-            var limitsFingerprint = AnalysisFingerprint.ProcessingLimits(limits, maximumExtractedCharacters);
+            var limitsFingerprint = processor is IAttachmentLimitsFingerprintProvider scopedFingerprint
+                ? scopedFingerprint.CreateLimitsFingerprint(limits, maximumExtractedCharacters)
+                : AnalysisFingerprint.ProcessingLimits(limits, maximumExtractedCharacters);
             var artifactId = options is null ? null : AnalysisFingerprint.Artifact(
                 options.Organization, options.Project, attachment.Reference, contentSha256,
                 processor.ProcessorIdentity, processor.ProcessorVersion, limitsFingerprint);
@@ -176,7 +178,11 @@ public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessin
                         ProcessorVersion = cached.ProcessorVersion,
                         CacheReused = true,
                         Warnings = cached.Warnings,
-                        RedactionCategoryCounts = cached.RedactionCategoryCounts
+                        RedactionCategoryCounts = cached.RedactionCategoryCounts,
+                        Pdf = cached.Pdf,
+                        Audio = cached.Audio,
+                        Video = cached.Video,
+                        SelectedKeyScreenshots = cached.SelectedKeyScreenshots
                     });
                     continue;
                 }
@@ -184,7 +190,10 @@ public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessin
 
             try
             {
-                var output = await processor.ProcessAsync(detected, limits, maximumExtractedCharacters, cancellationToken);
+                var output = options is not null && processor is ICacheAwareAttachmentProcessor cacheAwareProcessor
+                    ? await cacheAwareProcessor.ProcessAsync(detected, limits, maximumExtractedCharacters,
+                        new AttachmentProcessorCacheContext(cache, options, contentSha256, limitsFingerprint), cancellationToken)
+                    : await processor.ProcessAsync(detected, limits, maximumExtractedCharacters, cancellationToken);
                 var attachmentRedaction = redactor.Redact(output.ExtractedEvidence);
                 var normalizedEvidence = attachmentRedaction.Content;
                 stopwatch.Stop();
@@ -199,15 +208,20 @@ public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessin
                     ProcessorIdentity = processor.ProcessorIdentity,
                     ProcessorVersion = processor.ProcessorVersion,
                     CacheReused = false,
-                    Warnings = output.FailureCategory is null ? [] : [output.FailureCategory],
-                    RedactionCategoryCounts = attachmentRedaction.CategoryCounts
+                    Warnings = output.Warnings.Concat(output.FailureCategory is null ? [] : [output.FailureCategory])
+                        .Distinct(StringComparer.Ordinal).ToArray(),
+                    RedactionCategoryCounts = attachmentRedaction.CategoryCounts,
+                    Pdf = output.Pdf,
+                    Audio = output.Audio,
+                    Video = output.Video,
+                    AiInteractions = output.AiInteractions
                 };
                 if (options is not null)
                 {
                     var safeFileName = redactor.Redact(attachment.FileName).Content;
                     try
                     {
-                        await cache.SaveAttachmentAsync(new AttachmentEvidenceArtifact(
+                        var artifact = new AttachmentEvidenceArtifact(
                             artifactId!, options.Organization, options.Project, attachment.Reference,
                             safeFileName, mediaType, bytes.LongLength, contentSha256,
                             processor.ProcessorIdentity, processor.ProcessorVersion,
@@ -216,7 +230,56 @@ public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessin
                             output.PagesAvailable, output.PagesInspected, output.FailureCategory, result.Warnings,
                             options.CreatedAtUtc, options.ExpiresAtUtc)
                         {
-                            RedactionCategoryCounts = attachmentRedaction.CategoryCounts
+                            RedactionCategoryCounts = attachmentRedaction.CategoryCounts,
+                            Pdf = output.Pdf,
+                            Audio = output.Audio,
+                            Video = output.Video
+                        };
+                        await cache.SaveAttachmentAsync(artifact, cancellationToken);
+
+                        var selected = new List<SelectedKeyScreenshot>();
+                        long retainedBytes = 0;
+                        foreach (var screenshot in output.SelectedScreenshots
+                                     .OrderBy(candidate => candidate.TimestampSeconds)
+                                     .Take(Math.Min(6, limits.MaximumSelectedVideoScreenshots)))
+                        {
+                            if (screenshot.Content.Length > limits.MaximumFrameBytes ||
+                                screenshot.Content.Length > limits.MaximumRetainedScreenshotBytes - retainedBytes)
+                            {
+                                result = result with { Warnings = [.. result.Warnings, "ScreenshotRetentionLimitExceeded"] };
+                                continue;
+                            }
+                            var derivedHash = AnalysisFingerprint.Sha256(screenshot.Content.Span);
+                            var screenshotId = AnalysisFingerprint.Sha256($"{artifactId}|{screenshot.TimestampSeconds:F3}|{derivedHash}|{processor.ProcessorVersion}");
+                            var metadata = new SelectedKeyScreenshot(attachment.Reference, contentSha256,
+                                screenshot.TimestampSeconds, derivedHash, screenshot.Width, screenshot.Height,
+                                screenshot.Content.Length, screenshot.Provenance, screenshotId, options.ExpiresAtUtc)
+                            {
+                                Observation = redactor.Redact(screenshot.Observation).Content,
+                                PipelineVersion = processor.ProcessorVersion
+                            };
+                            try
+                            {
+                                await cache.SaveScreenshotAsync(new SelectedKeyScreenshotArtifact(
+                                    screenshotId, artifactId!, options.Organization, options.Project, metadata,
+                                    "image/jpeg", screenshot.Content.ToArray(), options.ExpiresAtUtc), cancellationToken);
+                                selected.Add(metadata);
+                                retainedBytes += screenshot.Content.Length;
+                            }
+                            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                            {
+                                throw;
+                            }
+                            catch (Exception)
+                            {
+                                result = result with { Warnings = [.. result.Warnings, "ScreenshotPersistenceFailed"] };
+                            }
+                        }
+                        result = result with { SelectedKeyScreenshots = selected };
+                        await cache.SaveAttachmentAsync(artifact with
+                        {
+                            Warnings = result.Warnings,
+                            SelectedKeyScreenshots = selected
                         }, cancellationToken);
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -227,7 +290,7 @@ public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessin
                     {
                         // Reusable artifact persistence is an optimization. Preserve the successfully
                         // processed evidence and disclose that this artifact was not cached.
-                        result = result with { ArtifactId = null, Warnings = [.. result.Warnings, "EvidenceCachePersistenceFailed"] };
+                        result = result with { ArtifactId = null, SelectedKeyScreenshots = [], Warnings = [.. result.Warnings, "EvidenceCachePersistenceFailed"] };
                     }
                 }
                 results.Add(result);
@@ -296,6 +359,13 @@ public sealed class AttachmentProcessingService : ICacheAwareAttachmentProcessin
         if (limits.MaximumCount <= 0 || limits.MaximumBytesPerAttachment <= 0 || limits.MaximumAggregateBytes <= 0 ||
             limits.MaximumPdfPages <= 0 || limits.MaximumImageCount <= 0 || limits.MaximumImageBytes <= 0 ||
             limits.MaximumCsvRows <= 0 || limits.MaximumStructuredTextDepth <= 0 || maximumExtractedCharacters <= 0 ||
+            limits.MaximumSpreadsheetSheets <= 0 || limits.MaximumSpreadsheetRowsPerSheet <= 0 ||
+            limits.MaximumSpreadsheetColumns <= 0 || limits.MaximumSpreadsheetCells <= 0 ||
+            limits.MaximumMediaDurationSeconds <= 0 || limits.MaximumMediaDimension <= 0 ||
+            limits.MaximumDecodedPixels <= 0 || limits.MaximumSampledFrames <= 0 ||
+            limits.MaximumFrameBytes <= 0 || limits.MaximumSelectedVideoScreenshots is <= 0 or > 6 ||
+            limits.MaximumRetainedScreenshotBytes <= 0 || limits.MaximumTranscriptCharacters <= 0 ||
+            limits.MediaProcessTimeoutSeconds <= 0 || limits.MaximumConcurrentMediaJobs <= 0 ||
             limits.MaximumBytesPerAttachment > int.MaxValue || limits.MaximumImageBytes > int.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(limits), "Attachment processing limits must be positive.");
     }
@@ -315,6 +385,25 @@ internal static class AttachmentMediaDetector
         if (content.StartsWith(new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a })) return "image/png";
         if (content.Length >= 3 && content[0] == 0xff && content[1] == 0xd8 && content[2] == 0xff) return "image/jpeg";
 
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var zip = content.Length >= 4 && content[0] == 0x50 && content[1] == 0x4b &&
+                  content[2] is 0x03 or 0x05 or 0x07 && content[3] is 0x04 or 0x06 or 0x08;
+        if (zip && extension == ".xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        if (zip && extension == ".docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (extension == ".xls") return "application/vnd.ms-excel";
+        if (extension is ".mp3" or ".wav" or ".m4a") return extension switch
+        {
+            ".mp3" => "audio/mpeg",
+            ".wav" => "audio/wav",
+            _ => "audio/mp4"
+        };
+        if (extension is ".mp4" or ".mov" or ".webm") return extension switch
+        {
+            ".mov" => "video/quicktime",
+            ".webm" => "video/webm",
+            _ => "video/mp4"
+        };
+
         if (!LooksLikeText(content)) return "application/octet-stream";
         var leading = DecodePrefix(content).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
         if (declared is "application/json" or "text/json" || leading.StartsWith('{') || leading.StartsWith('[')) return "application/json";
@@ -323,7 +412,6 @@ internal static class AttachmentMediaDetector
         if (declared is not null && declared.StartsWith("text/", StringComparison.Ordinal))
             return declared is "text/plain" or "text/x-log" ? declared : "text/plain";
 
-        var extension = Path.GetExtension(fileName).ToLowerInvariant();
         return extension switch
         {
             ".json" => "application/json",
