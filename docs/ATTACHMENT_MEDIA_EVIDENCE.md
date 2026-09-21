@@ -6,6 +6,8 @@ Engineering Intake Gate remains **Controlled Dry Run only**. Attachment processo
 
 AttachedFile relations may use the documented organization-scoped form `https://dev.azure.com/{organization}/_apis/wit/attachments/{guid}` or the supported project-scoped variant. The downloader parses the URI and requires the configured scheme, host, effective port, organization, exact attachment path, and a canonical GUID. It rejects userinfo, fragments, traversal and encoded traversal, deceptive hosts, other organizations, extra path segments, duplicate query keys, and every query key except `api-version`, `fileName`, and `download`. The client forces API version 7.1 while preserving the existing declared-size, response-header, streaming, per-file, and aggregate limits.
 
+Azure DevOps clients do not follow HTTP redirects. In particular, attachment downloads fail with the safe category `AzureDevOpsUnsafeAttachmentRedirect` rather than forwarding a PAT or attachment request to a redirected origin.
+
 ## Supported matrix
 
 | Type | Behavior |

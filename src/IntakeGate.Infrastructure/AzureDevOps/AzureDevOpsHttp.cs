@@ -3,6 +3,19 @@ using System.Text;
 
 namespace IntakeGate.Infrastructure.AzureDevOps;
 
+public static class AzureDevOpsHttpClientFactory
+{
+    public static HttpClient CreateClient() => new(new SocketsHttpHandler
+    {
+        // Provider responses are authenticated with a PAT. Following a redirect automatically
+        // would move origin validation outside the adapter and could disclose the credential.
+        AllowAutoRedirect = false
+    })
+    {
+        Timeout = Timeout.InfiniteTimeSpan
+    };
+}
+
 internal static class AzureDevOpsHttp
 {
     public static Uri BuildProjectApiBase(Uri organizationUrl, string project)

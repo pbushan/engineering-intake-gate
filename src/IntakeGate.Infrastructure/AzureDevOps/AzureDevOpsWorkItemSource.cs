@@ -325,6 +325,11 @@ public sealed class AzureDevOpsWorkItemSource : IWorkItemSource
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(requestTimeout);
                 var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+                if (response.StatusCode is >= HttpStatusCode.MultipleChoices and < HttpStatusCode.BadRequest)
+                {
+                    response.Dispose();
+                    throw new AttachmentContentUnavailableException("AzureDevOpsUnsafeAttachmentRedirect");
+                }
                 if (!response.IsSuccessStatusCode)
                 {
                     var failure = MapStatus(response.StatusCode);

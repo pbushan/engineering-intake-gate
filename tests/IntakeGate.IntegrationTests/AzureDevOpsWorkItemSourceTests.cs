@@ -156,6 +156,36 @@ public sealed class AzureDevOpsWorkItemSourceTests
         Assert.Equal(png, visual.Content.ToArray());
     }
 
+    [Fact]
+    public async Task ATT_001_MEDIA_001_OrganizationScopedMp4IsDownloadedAndDispatchedForVideoInspection()
+    {
+        const string attachmentUrl = "https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee?fileName=recording.mp4&download=true";
+        byte[] mp4 = [0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,
+            0, 0, 0, 0, 0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32];
+        var handler = new ScriptedHandler(
+            Json(HttpStatusCode.OK, $$$"""{"id":42,"rev":7,"fields":{"System.WorkItemType":"Generic","System.Title":"Video"},"relations":[{"rel":"AttachedFile","url":"{{{attachmentUrl}}}","attributes":{"name":"recording.mp4","resourceSize":{{{mp4.Length}}}}}]}"""),
+            Json(HttpStatusCode.OK, """{"comments":[]}"""),
+            Bytes(HttpStatusCode.OK, "application/octet-stream", mp4));
+        var processor = new RecordingVideoProcessor();
+        var preprocessor = new EvidencePreprocessor(
+            new IntakeGate.Infrastructure.Evidence.HtmlContentNormalizer(),
+            new SecretRedactor(), new NullEvidenceLog(),
+            new IntakeGate.Infrastructure.Evidence.AttachmentProcessingService([processor]));
+
+        var read = await Source(handler).GetWorkItemAsync(42);
+        var evidence = await preprocessor.PrepareAsync(read.WorkItem!, Processing());
+
+        var attachment = Assert.Single(evidence.Attachments);
+        Assert.Equal("video/mp4", attachment.ContentType);
+        Assert.Equal(AttachmentProcessingStatus.Processed, attachment.ProcessingStatus);
+        Assert.Equal(AttachmentInspectionMode.VideoComposite, attachment.InspectionMode);
+        Assert.True(evidence.Processing.AttachmentContentInspected);
+        Assert.NotNull(processor.Attachment);
+        Assert.Equal(mp4, processor.Attachment.Content);
+        Assert.Equal("video/mp4", processor.Attachment.MediaType);
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
     [Theory]
     [InlineData("https://dev.azure.com.evil.example/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")]
     [InlineData("https://user@dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")]
@@ -179,6 +209,28 @@ public sealed class AzureDevOpsWorkItemSourceTests
 
         Assert.Equal("AzureDevOpsUnsafeAttachmentReference", exception.SafeCategory);
         Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task ATT_001_AttachmentDownloadRejectsRedirectWithoutRetryingOrReadingTarget()
+    {
+        const string attachmentUrl = "https://dev.azure.com/generic-org/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        var redirect = new HttpResponseMessage(HttpStatusCode.Redirect);
+        redirect.Headers.Location = new Uri("https://evil.example/credential-capture");
+        var handler = new ScriptedHandler(
+            Json(HttpStatusCode.OK, $$$"""{"id":42,"rev":8,"fields":{"System.WorkItemType":"Generic","System.Title":"Title"},"relations":[{"rel":"AttachedFile","url":"{{{attachmentUrl}}}","attributes":{"name":"redirected.mp4","resourceSize":24}}]}"""),
+            Json(HttpStatusCode.OK, """{"comments":[]}"""),
+            redirect);
+        var read = await Source(handler, retries: 2).GetWorkItemAsync(42);
+
+        var exception = await Assert.ThrowsAsync<AttachmentContentUnavailableException>(async () =>
+        {
+            await using var _ = await Assert.Single(read.WorkItem!.Attachments).Content!.OpenReadAsync();
+        });
+
+        Assert.Equal("AzureDevOpsUnsafeAttachmentRedirect", exception.SafeCategory);
+        Assert.Equal(3, handler.Requests.Count);
+        Assert.DoesNotContain(handler.Requests, request => request.Path.Contains("evil.example", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -319,6 +371,13 @@ public sealed class AzureDevOpsWorkItemSourceTests
         Content = new StringContent(content, Encoding.UTF8, mediaType)
     };
 
+    private static HttpResponseMessage Bytes(HttpStatusCode status, string mediaType, byte[] content)
+    {
+        var response = new HttpResponseMessage(status) { Content = new ByteArrayContent(content) };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mediaType);
+        return response;
+    }
+
     private sealed class FixedCredentialResolver(string value) : IAzureDevOpsCredentialResolver
     {
         public string? Resolve(string environmentVariableName) => value;
@@ -344,5 +403,30 @@ public sealed class AzureDevOpsWorkItemSourceTests
     {
         public void ContentCollectionCompleted(ContentCollectionLogEntry entry) { }
         public void SecretRedactionCompleted(SecretRedactionLogEntry entry) { }
+    }
+
+    private sealed class RecordingVideoProcessor : IAttachmentProcessor
+    {
+        public DetectedAttachment? Attachment { get; private set; }
+
+        public bool CanProcess(DetectedAttachment attachment) => attachment.MediaType == "video/mp4";
+
+        public ValueTask<AttachmentProcessorOutput> ProcessAsync(
+            DetectedAttachment attachment,
+            AttachmentLimits limits,
+            int maximumExtractedCharacters,
+            CancellationToken cancellationToken)
+        {
+            Attachment = attachment;
+            return ValueTask.FromResult(new AttachmentProcessorOutput(
+                AttachmentProcessingStatus.Processed,
+                AttachmentInspectionMode.VideoComposite,
+                "Video frames inspected.",
+                false,
+                true,
+                null,
+                null,
+                null));
+        }
     }
 }

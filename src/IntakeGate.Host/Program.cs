@@ -476,7 +476,7 @@ builder.Services.AddSingleton<IWorkItemSource>(services =>
 {
     var configuration = services.GetRequiredService<DeploymentConfiguration>();
     return new AzureDevOpsWorkItemSource(
-        new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+        AzureDevOpsHttpClientFactory.CreateClient(),
         configuration.Profile.Ado,
         services.GetRequiredService<IAzureDevOpsCredentialResolver>(),
         services.GetRequiredService<IWorkItemReadLog>(),
@@ -488,7 +488,7 @@ builder.Services.AddSingleton<IWorkItemWriter>(services =>
 {
     var configuration = services.GetRequiredService<DeploymentConfiguration>();
     return new AzureDevOpsWorkItemWriter(
-        new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+        AzureDevOpsHttpClientFactory.CreateClient(),
         configuration.Profile.Ado,
         services.GetRequiredService<IAzureDevOpsCredentialResolver>());
 });
