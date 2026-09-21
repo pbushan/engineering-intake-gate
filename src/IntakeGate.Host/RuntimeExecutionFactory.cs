@@ -122,11 +122,11 @@ public sealed class AzureDevOpsRuntimeAdapterFactory(IWorkItemReadLog log, IConf
     {
         var resolver = new FixedAzureDevOpsCredentialResolver(credential.DangerousGetValue());
         return new RuntimeAzureDevOpsAdapters(
-            new AzureDevOpsWorkItemSource(new HttpClient { Timeout = Timeout.InfiniteTimeSpan }, snapshot.Profile.Ado,
+            new AzureDevOpsWorkItemSource(AzureDevOpsHttpClientFactory.CreateClient(), snapshot.Profile.Ado,
                 resolver, log, snapshot.Profile.Processing.Retries,
                 snapshot.Profile.Processing.AttachmentLimits.MaximumBytesPerAttachment,
                 enableAttachmentDownloads: hostConfiguration.GetValue("AdoRuntime:ReadAttachments", true)),
-            new AzureDevOpsWorkItemWriter(new HttpClient { Timeout = Timeout.InfiniteTimeSpan }, snapshot.Profile.Ado, resolver));
+            new AzureDevOpsWorkItemWriter(AzureDevOpsHttpClientFactory.CreateClient(), snapshot.Profile.Ado, resolver));
     }
 
     private sealed class FixedAzureDevOpsCredentialResolver(string value) : IAzureDevOpsCredentialResolver

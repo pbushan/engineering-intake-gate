@@ -9,7 +9,7 @@ namespace IntakeGate.Infrastructure.AzureDevOps;
 
 public sealed class AzureDevOpsManagementClientFactory : IAzureDevOpsManagementClientFactory
 {
-    private readonly HttpClient httpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
+    private readonly HttpClient httpClient = AzureDevOpsHttpClientFactory.CreateClient();
 
     public IAzureDevOpsManagementClient Create(
         AzureDevOpsConfiguration configuration,
